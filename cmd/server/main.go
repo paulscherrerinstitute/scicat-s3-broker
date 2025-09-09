@@ -1,0 +1,25 @@
+package main
+
+import (
+	"log"
+
+	"github.com/gin-gonic/gin"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/handlers"
+)
+
+func main() {
+	router := gin.Default()
+
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "healthy",
+		})
+	})
+
+	router.GET("/get-s3-creds", handlers.GetS3Credentials)
+
+	log.Println("Starting SciCat S3 Broker server on port 8085...")
+	if err := router.Run(":8085"); err != nil {
+		log.Fatal("Failed to start server: ", err)
+	}
+}
