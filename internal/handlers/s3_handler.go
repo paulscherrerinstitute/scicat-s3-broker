@@ -2,7 +2,14 @@ package handlers
 
 import (
 	"net/http"
-	"time"
+
+	"context"
+	"log"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/models"
@@ -38,11 +45,54 @@ func GetS3Credentials(c *gin.Context) {
 	}
 
 	// Return dummy S3 credentials, TODO: Replace with real logic to fetch credentials
+	cfg, err := config.LoadDefaultConfig(context.TODO(),
+		config.WithSharedCredentialsFiles(
+			[]string{"env/credentials"},
+		),
+		config.WithSharedConfigFiles(
+			[]string{"env/config"},
+		),
+		config.WithSharedConfigProfile("ceph"))
+	if err != nil {
+		log.Printf("Failed to load AWS config: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Internal server error",
+		})
+		return
+	}
+
+	s3Client := s3.NewFromConfig(cfg)
+	out, err := s3Client.ListBuckets(context.TODO(), &s3.ListBucketsInput{})
+	if err != nil {
+		log.Printf("Failed to list S3 buckets: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Internal server error",
+		})
+		return
+	}
+	for _, bucket := range out.Buckets {
+		log.Printf("Bucket: %s, Created on: %s", *bucket.Name, bucket.CreationDate)
+	}
+
+	stsClient := sts.NewFromConfig(cfg)
+	stsOut, err := stsClient.AssumeRole(context.TODO(), &sts.AssumeRoleInput{
+		RoleArn:         aws.String("arn:aws:iam:::role/PsiLimitedAccessRole"),
+		RoleSessionName: aws.String("scicat-session"),
+		//Policy:          aws.String(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:ListBucket","s3:GetObject"],"Resource":["arn:aws:s3:::your-bucket-name/*"]}]}`), // Replace with actual policy
+	})
+	if err != nil {
+		log.Printf("Failed to assume role: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Internal server error",
+		})
+		return
+	}
+
 	response := models.S3CredentialsResponse{
-		AccessKey:    "ASIA...",
-		SecretKey:    "wJalrXUtnFEMI/K7MDENG/bPxRfiCY...",
-		SessionToken: "FQoGZXIvYXdzE...",
-		ExpiryTime:   time.Now().Add(time.Hour), // Expires in 1 hour
+		AccessKey:    *stsOut.Credentials.AccessKeyId,
+		SecretKey:    *stsOut.Credentials.SecretAccessKey,
+		SessionToken: *stsOut.Credentials.SessionToken,
+		ExpiryTime:   *stsOut.Credentials.Expiration,
 	}
 
 	c.JSON(http.StatusOK, response)
