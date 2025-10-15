@@ -12,7 +12,7 @@ Also included is a simple CLI client that can be used as an AWS CLI credential p
 ## Features
 
 - 🔑 **Credential broker**: returns temporary S3 credentials for a given dataset.
-- 🛡 **Authorization via SciCat**: forwards the end-user’s SciCat token for access checks.
+- 🛡 **Authorization via SciCat**: forwards the end-user’s SciCat token for access checks. //TO-DO
 
 ---
 
