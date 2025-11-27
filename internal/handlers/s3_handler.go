@@ -75,10 +75,35 @@ func GetS3Credentials(c *gin.Context) {
 	}
 
 	stsClient := sts.NewFromConfig(cfg)
+	policy := `{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Effect": "Allow",
+				"Action": "s3:*",
+				"Resource": [
+					"arn:aws:s3:::datasets/` + dataset + `",
+					"arn:aws:s3:::datasets/` + dataset + `/*"
+				]
+			},
+			{
+				"Effect": "Allow",
+				"Action": "s3:ListBucket",
+				"Resource": "arn:aws:s3:::datasets",
+				"Condition": {
+					"StringLike": {
+						"s3:prefix": [
+							"` + dataset + `/"
+						]
+					}
+				}
+			}
+		]
+	}`
 	stsOut, err := stsClient.AssumeRole(context.TODO(), &sts.AssumeRoleInput{
 		RoleArn:         aws.String("arn:aws:iam:::role/PsiLimitedAccessRole"),
 		RoleSessionName: aws.String("scicat-session"),
-		//Policy:          aws.String(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:ListBucket","s3:GetObject"],"Resource":["arn:aws:s3:::your-bucket-name/*"]}]}`), // Replace with actual policy
+		Policy:          aws.String(policy),
 	})
 	if err != nil {
 		log.Printf("Failed to assume role: %v", err)
