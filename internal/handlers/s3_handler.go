@@ -44,7 +44,6 @@ func GetS3Credentials(c *gin.Context) {
 		return
 	}
 
-	// Return dummy S3 credentials, TODO: Replace with real logic to fetch credentials
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithSharedCredentialsFiles(
 			[]string{"env/credentials"},

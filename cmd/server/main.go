@@ -17,6 +17,7 @@ func main() {
 	})
 
 	router.GET("/get-s3-creds", handlers.GetS3Credentials)
+	router.GET("/get-urls", handlers.GetActiveUrls)
 
 	log.Println("Starting SciCat S3 Broker server on port 8085...")
 	if err := router.Run(":8085"); err != nil {
