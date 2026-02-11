@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings" // Added for TrimRight
+	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +17,7 @@ import (
 )
 
 type SciCatUrlResponse struct {
-	URL     string    `json:"url"`
+	URLs    []string  `json:"urls"`
 	Expires time.Time `json:"expires"`
 }
 
@@ -225,7 +225,7 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 		return
 	}
 
-	scicatUrlResp, err := toSciCatUrlResponse(jobResp[0])
+	scicatUrlResp, err := toSciCatUrlResponse(dataset, jobResp[0])
 	if err != nil {
 		log.Printf("failed to convert to URL response: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -234,9 +234,16 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 	c.PureJSON(http.StatusOK, scicatUrlResp)
 }
 
-func toSciCatUrlResponse(resp JobsResponse) (*SciCatUrlResponse, error) {
+func toSciCatUrlResponse(pid string, resp JobsResponse) (*SciCatUrlResponse, error) {
 	if len(resp.JobResultObject.Result) == 0 {
 		return nil, errors.New("no URLs available in job response")
+	}
+
+	result := []string{}
+	for _, x := range resp.JobResultObject.Result {
+		if x.DatasetId == pid {
+			result = append(result, x.Url)
+		}
 	}
 
 	creationTime, err := time.Parse(time.RFC3339, resp.CreationTime)
@@ -245,5 +252,5 @@ func toSciCatUrlResponse(resp JobsResponse) (*SciCatUrlResponse, error) {
 	}
 	const urlExpireDays = 7
 	expirationTime := creationTime.AddDate(0, 0, urlExpireDays)
-	return &SciCatUrlResponse{resp.JobResultObject.Result[0].Url, expirationTime}, nil
+	return &SciCatUrlResponse{result, expirationTime}, nil
 }
