@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings" // Added for TrimRight
 	"sync"
 	"time"
 
@@ -49,16 +50,20 @@ type SciCatHandler struct {
 }
 
 func NewSciCatHandler() *SciCatHandler {
+	scicatURL := os.Getenv("SCICAT_URL")
+	if scicatURL == "" {
+		log.Fatal("SCICAT_URL environment variable is required")
+	}
+
 	return &SciCatHandler{
 		config: Config{
-			sciCatURL: os.Getenv("SCICAT_URL"),
+			sciCatURL: strings.TrimRight(scicatURL, "/"),
 			username:  "jobManager",
 			password:  os.Getenv("JOB_MANAGER_PASSWORD"),
 		},
 	}
 }
 
-// logIn returns a valid jobManager token or an error
 func (h *SciCatHandler) logIn() (SciCatLoginResponse, error) {
 	var loginResp SciCatLoginResponse
 
@@ -70,7 +75,7 @@ func (h *SciCatHandler) logIn() (SciCatLoginResponse, error) {
 		return loginResp, fmt.Errorf("failed to marshal credentials: %w", err)
 	}
 
-	resp, err := http.Post(fmt.Sprintf("%s/api/v3/auth/login", os.Getenv("SCICAT_URL")), "application/json", bytes.NewReader(creds))
+	resp, err := http.Post(fmt.Sprintf("%s/api/v3/auth/login", h.config.sciCatURL), "application/json", bytes.NewReader(creds))
 	if err != nil {
 		return loginResp, fmt.Errorf("POST /login failed: %w", err)
 	}
@@ -87,27 +92,27 @@ func (h *SciCatHandler) logIn() (SciCatLoginResponse, error) {
 	return loginResp, nil
 }
 
-func (h *SciCatHandler) isExpired(resp SciCatLoginResponse) bool {
+func (h *SciCatHandler) isTokenExpired() bool {
 	h.tokenMutex.RLock()
 	defer h.tokenMutex.RUnlock()
+
 	if h.token.AccessToken == "" {
 		return true
 	}
-	createdAt, err := time.Parse(time.RFC3339, resp.CreatedAt)
+	createdAt, err := time.Parse(time.RFC3339, h.token.CreatedAt)
 	if err != nil {
 		log.Printf("failed to parse token creation time: %v", err)
-		return true // treat as expired if we can't parse the time
+		return true
 	}
-	expirationTime := createdAt.Add(time.Second * time.Duration(resp.ExpiresIn))
+	expirationTime := createdAt.Add(time.Second * time.Duration(h.token.ExpiresIn))
+
+	// Refreshes 1 hour before actual expiration
 	return time.Now().Add(time.Hour).After(expirationTime)
 }
 
 func (h *SciCatHandler) isPublic(datasetPid string) bool {
-	filterQuery, err := json.Marshal(gin.H{
-		"fields": []string{"_id"},
-	})
+	filterQuery, err := json.Marshal(gin.H{"fields": []string{"_id"}})
 	if err != nil {
-		log.Printf("failed to marshal filter query: %v", err)
 		return false
 	}
 
@@ -127,8 +132,24 @@ func (h *SciCatHandler) isPublic(datasetPid string) bool {
 	}
 	defer resp.Body.Close()
 
-	log.Printf("dataset public check status: %s", resp.Status)
 	return resp.StatusCode == http.StatusOK
+}
+
+func (h *SciCatHandler) getToken() (string, error) {
+	if h.isTokenExpired() {
+		log.Println("refreshing expired token")
+		loginResp, err := h.logIn()
+		if err != nil {
+			return "", err
+		}
+		h.tokenMutex.Lock()
+		h.token = loginResp
+		h.tokenMutex.Unlock()
+	}
+
+	h.tokenMutex.RLock()
+	defer h.tokenMutex.RUnlock()
+	return h.token.AccessToken, nil
 }
 
 func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
@@ -139,22 +160,12 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 		return
 	}
 
-	if h.isExpired(h.token) {
-		log.Println("refreshing expired token")
-		loginResp, err := h.logIn()
-		if err != nil {
-			log.Printf("failed to login: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to authenticate"})
-			return
-		}
-		h.tokenMutex.Lock()
-		h.token = loginResp
-		h.tokenMutex.Unlock()
+	accessToken, err := h.getToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
 	}
-
-	h.tokenMutex.RLock()
-	authHeader := fmt.Sprintf("Bearer %s", h.token.AccessToken)
-	h.tokenMutex.RUnlock()
+	authHeader := fmt.Sprintf("Bearer %s", accessToken)
 
 	filterQuery, err := json.Marshal(gin.H{
 		"where": gin.H{
@@ -170,29 +181,27 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 		}})
 	if err != nil {
 		log.Printf("Failed to marshal json: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Internal server error",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
 	u, err := url.Parse(fmt.Sprintf("%s/api/v4/jobs", h.config.sciCatURL))
 	if err != nil {
 		log.Printf("Failed to parse URL: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Internal server error",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 	q := u.Query()
 	q.Set("filter", string(filterQuery))
 	u.RawQuery = q.Encode()
+
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		log.Printf("Failed to create request: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
+	req = req.WithContext(c.Request.Context())
 	req.Header.Set("Authorization", authHeader)
 
 	resp, err := http.DefaultClient.Do(req)
