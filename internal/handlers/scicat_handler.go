@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -37,47 +36,61 @@ type SciCatLoginResponse struct {
 	CreatedAt   string `json:"created"`
 }
 
-const urlExpireDays = 7
+type Config struct {
+	sciCatURL string
+	username  string
+	password  string
+}
 
-var (
-	tokenMutex       = &sync.RWMutex{}
-	currentLoginResp SciCatLoginResponse
-)
+type SciCatHandler struct {
+	config     Config
+	tokenMutex sync.RWMutex
+	token      SciCatLoginResponse
+}
+
+func NewSciCatHandler() *SciCatHandler {
+	return &SciCatHandler{
+		config: Config{
+			sciCatURL: os.Getenv("SCICAT_URL"),
+			username:  "jobManager",
+			password:  os.Getenv("JOB_MANAGER_PASSWORD"),
+		},
+	}
+}
 
 // logIn returns a valid jobManager token or an error
-func logIn() (SciCatLoginResponse, error) {
+func (h *SciCatHandler) logIn() (SciCatLoginResponse, error) {
 	var loginResp SciCatLoginResponse
 
 	creds, err := json.Marshal(gin.H{
-		"username": "jobManager",
-		"password": os.Getenv("JOB_MANAGER_PASSWORD"),
+		"username": h.config.username,
+		"password": h.config.password,
 	})
 	if err != nil {
 		return loginResp, fmt.Errorf("failed to marshal credentials: %w", err)
 	}
 
 	resp, err := http.Post(fmt.Sprintf("%s/api/v3/auth/login", os.Getenv("SCICAT_URL")), "application/json", bytes.NewReader(creds))
-	if err != nil || resp.StatusCode != http.StatusCreated {
-		return loginResp, fmt.Errorf("failed to login: %v %v", err, resp.StatusCode)
+	if err != nil {
+		return loginResp, fmt.Errorf("POST /login failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return loginResp, fmt.Errorf("failed to read response body: %w", err)
+	if resp.StatusCode != http.StatusCreated {
+		return loginResp, fmt.Errorf("Invalid status code from /login: %v", resp.StatusCode)
 	}
 
-	err = json.Unmarshal(respBody, &loginResp)
+	err = json.NewDecoder(resp.Body).Decode(&loginResp)
 	if err != nil {
 		return loginResp, fmt.Errorf("failed to unmarshal login response: %w", err)
 	}
 	return loginResp, nil
 }
 
-func isExpired(resp SciCatLoginResponse) bool {
-	tokenMutex.RLock()
-	defer tokenMutex.RUnlock()
-	if currentLoginResp.AccessToken == "" {
+func (h *SciCatHandler) isExpired(resp SciCatLoginResponse) bool {
+	h.tokenMutex.RLock()
+	defer h.tokenMutex.RUnlock()
+	if h.token.AccessToken == "" {
 		return true
 	}
 	createdAt, err := time.Parse(time.RFC3339, resp.CreatedAt)
@@ -89,7 +102,7 @@ func isExpired(resp SciCatLoginResponse) bool {
 	return time.Now().Add(time.Hour).After(expirationTime)
 }
 
-func isPublic(datasetPid string) bool {
+func (h *SciCatHandler) isPublic(datasetPid string) bool {
 	filterQuery, err := json.Marshal(gin.H{
 		"fields": []string{"_id"},
 	})
@@ -98,7 +111,7 @@ func isPublic(datasetPid string) bool {
 		return false
 	}
 
-	u, err := url.Parse(fmt.Sprintf("%s/api/v3/datasets/%s", os.Getenv("SCICAT_URL"), url.PathEscape(datasetPid)))
+	u, err := url.Parse(fmt.Sprintf("%s/api/v3/datasets/%s", h.config.sciCatURL, url.PathEscape(datasetPid)))
 	if err != nil {
 		log.Printf("failed to parse dataset URL: %v", err)
 		return false
@@ -118,30 +131,30 @@ func isPublic(datasetPid string) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-func GetActiveUrls(c *gin.Context) {
+func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 	dataset := c.Query("dataset")
 
-	if !isPublic(dataset) {
+	if !h.isPublic(dataset) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "dataset not public"})
 		return
 	}
 
-	if isExpired(currentLoginResp) {
+	if h.isExpired(h.token) {
 		log.Println("refreshing expired token")
-		loginResp, err := logIn()
+		loginResp, err := h.logIn()
 		if err != nil {
 			log.Printf("failed to login: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to authenticate"})
 			return
 		}
-		tokenMutex.Lock()
-		currentLoginResp = loginResp
-		tokenMutex.Unlock()
+		h.tokenMutex.Lock()
+		h.token = loginResp
+		h.tokenMutex.Unlock()
 	}
 
-	tokenMutex.RLock()
-	authHeader := fmt.Sprintf("Bearer %s", currentLoginResp.AccessToken)
-	tokenMutex.RUnlock()
+	h.tokenMutex.RLock()
+	authHeader := fmt.Sprintf("Bearer %s", h.token.AccessToken)
+	h.tokenMutex.RUnlock()
 
 	filterQuery, err := json.Marshal(gin.H{
 		"where": gin.H{
@@ -163,7 +176,7 @@ func GetActiveUrls(c *gin.Context) {
 		return
 	}
 
-	u, err := url.Parse(fmt.Sprintf("%s/api/v4/jobs", os.Getenv("SCICAT_URL")))
+	u, err := url.Parse(fmt.Sprintf("%s/api/v4/jobs", h.config.sciCatURL))
 	if err != nil {
 		log.Printf("Failed to parse URL: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -190,14 +203,8 @@ func GetActiveUrls(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("Failed to read response body: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
-	}
 	var jobResp []JobsResponse
-	err = json.Unmarshal(responseBody, &jobResp)
+	err = json.NewDecoder(resp.Body).Decode(&jobResp)
 	if err != nil {
 		log.Printf("failed to unmarshal jobs response: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -227,7 +234,7 @@ func toSciCatUrlResponse(resp JobsResponse) (*SciCatUrlResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse creation time: %w", err)
 	}
-
+	const urlExpireDays = 7
 	expirationTime := creationTime.AddDate(0, 0, urlExpireDays)
 	return &SciCatUrlResponse{resp.JobResultObject.Result[0].Url, expirationTime}, nil
 }
