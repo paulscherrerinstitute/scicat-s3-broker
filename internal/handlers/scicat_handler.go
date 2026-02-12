@@ -43,7 +43,6 @@ type SciCatHandler struct {
 }
 
 func NewSciCatHandler(cfg *config.Config) *SciCatHandler {
-
 	return &SciCatHandler{
 		config: cfg,
 	}
@@ -91,8 +90,8 @@ func (h *SciCatHandler) isTokenExpired() bool {
 	}
 	expirationTime := createdAt.Add(time.Second * time.Duration(h.token.ExpiresIn))
 
-	// Refreshes 1 hour before actual expiration
-	return time.Now().Add(time.Hour).After(expirationTime)
+	// Refreshes 10 mins before actual expiration
+	return time.Now().Add(10 * time.Minute).After(expirationTime)
 }
 
 func (h *SciCatHandler) isPublic(datasetPid string) bool {
@@ -141,7 +140,7 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 	dataset := c.Query("dataset")
 
 	if !h.isPublic(dataset) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "dataset not public"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Dataset not accessible"})
 		return
 	}
 

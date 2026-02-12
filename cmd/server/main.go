@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
@@ -25,10 +26,17 @@ func main() {
 
 	router.GET("/get-s3-creds", handlers.GetS3Credentials)
 
-	router.GET("/get-urls", h.GetActiveUrls)
+	if cfg.JobManagerPassword != "" {
+		router.GET("/get-urls", h.GetActiveUrls)
+	} else {
+		router.GET("/get-urls", func(c *gin.Context) {
+			c.JSON(http.StatusNotImplemented, gin.H{
+				"error": "This endpoint is disabled",
+			})
+		})
+	}
 
-	log.Println("Starting SciCat S3 Broker server on port 8085...")
-	if err := router.Run(":8085"); err != nil {
+	if err := router.Run(); err != nil {
 		log.Fatal("Failed to start server: ", err)
 	}
 }

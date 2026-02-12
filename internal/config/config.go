@@ -20,9 +20,6 @@ func Load() (*Config, error) {
 	}
 
 	password := os.Getenv("JOB_MANAGER_PASSWORD")
-	if password == "" {
-		return nil, fmt.Errorf("JOB_MANAGER_PASSWORD environment variable is required")
-	}
 
 	username := os.Getenv("JOB_MANAGER_USERNAME")
 	if username == "" {

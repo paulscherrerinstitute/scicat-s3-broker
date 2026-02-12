@@ -1,0 +1,249 @@
+package handlers
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
+)
+
+func getTestConfig(serverURL string) *config.Config {
+	return &config.Config{
+		SciCatURL:          serverURL,
+		JobManagerUsername: "testuser",
+		JobManagerPassword: "testpass",
+	}
+}
+
+func makeJobResponse(t *testing.T, jsonStr string) JobsResponse {
+	var jr JobsResponse
+	err := json.Unmarshal([]byte(jsonStr), &jr)
+	if err != nil {
+		t.Fatalf("Failed to create test data: %v", err)
+	}
+	return jr
+}
+
+func TestToSciCatUrlResponse(t *testing.T) {
+	now := time.Now()
+	validTimeStr := now.Format(time.RFC3339)
+
+	tests := []struct {
+		name          string
+		pid           string
+		inputJSON     string
+		wantErr       bool
+		expectedCount int
+	}{
+		{
+			name: "Valid Single Result",
+			pid:  "pid-123",
+			inputJSON: fmt.Sprintf(`{
+				"createdAt": "%s",
+				"jobResultObject": {
+					"result": [
+						{"datasetId": "pid-123", "url": "s3://bucket/file1"}
+					]
+				}
+			}`, validTimeStr),
+			wantErr:       false,
+			expectedCount: 1,
+		},
+		{
+			name: "Filter Irrelevant PIDs",
+			pid:  "pid-123",
+			inputJSON: fmt.Sprintf(`{
+				"createdAt": "%s",
+				"jobResultObject": {
+					"result": [
+						{"datasetId": "pid-123", "url": "s3://bucket/match"},
+						{"datasetId": "pid-456", "url": "s3://bucket/ignore"}
+					]
+				}
+			}`, validTimeStr),
+			wantErr:       false,
+			expectedCount: 1,
+		},
+		{
+			name: "Empty Result List",
+			pid:  "pid-123",
+			inputJSON: fmt.Sprintf(`{
+				"createdAt": "%s",
+				"jobResultObject": {
+					"result": []
+				}
+			}`, validTimeStr),
+			wantErr: true,
+		},
+		{
+			name: "Invalid Time Format",
+			pid:  "pid-123",
+			inputJSON: `{
+				"createdAt": "not-a-timestamp",
+				"jobResultObject": {
+					"result": [
+						{"datasetId": "pid-123", "url": "s3://bucket/file1"}
+					]
+				}
+			}`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jobResp := makeJobResponse(t, tt.inputJSON)
+			got, err := toSciCatUrlResponse(tt.pid, jobResp)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("toSciCatUrlResponse() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				if len(got.URLs) != tt.expectedCount {
+					t.Errorf("Expected %d URLs, got %d", tt.expectedCount, len(got.URLs))
+				}
+				// Verify expiration is 7 days from creation
+				creationTime, _ := time.Parse(time.RFC3339, jobResp.CreationTime)
+				expectedExp := creationTime.AddDate(0, 0, 7)
+				diff := got.Expires.Sub(expectedExp)
+				tolerance := 1 * time.Second
+				if diff < -tolerance || diff > tolerance {
+					t.Errorf("Expiration date mismatch.\nGot:  %v\nWant: %v\nDiff: %v", got.Expires, expectedExp, diff)
+				}
+			}
+		})
+	}
+}
+
+func TestGetActiveUrls(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name           string
+		datasetPid     string
+		mockPublicCode int
+		mockLoginCode  int
+		mockJobsCode   int
+		mockJobsBody   string
+		wantStatusCode int
+	}{
+		{
+			name:           "Success",
+			datasetPid:     "valid-pid",
+			mockPublicCode: http.StatusOK,
+			mockLoginCode:  http.StatusCreated,
+			mockJobsCode:   http.StatusOK,
+			mockJobsBody: fmt.Sprintf(`[{
+				"createdAt": "%s",
+				"jobResultObject": {
+					"result": [{"datasetId": "valid-pid", "url": "http://result"}]
+				}
+			}]`, time.Now().Format(time.RFC3339)),
+			wantStatusCode: http.StatusOK,
+		},
+		{
+			name:           "Dataset Not Public or Not Found",
+			datasetPid:     "private-pid-or-no-such-pid",
+			mockPublicCode: http.StatusNotFound,
+			wantStatusCode: http.StatusUnauthorized,
+		},
+		{
+			name:           "Login Failed",
+			datasetPid:     "valid-pid",
+			mockPublicCode: http.StatusOK,
+			mockLoginCode:  http.StatusUnauthorized,
+			wantStatusCode: http.StatusInternalServerError,
+		},
+		{
+			name:           "Jobs Fetch Error",
+			datasetPid:     "valid-pid",
+			mockPublicCode: http.StatusOK,
+			mockLoginCode:  http.StatusCreated,
+			mockJobsCode:   http.StatusInternalServerError,
+			wantStatusCode: http.StatusInternalServerError,
+		},
+		{
+			name:           "No Jobs Found",
+			datasetPid:     "valid-pid",
+			mockPublicCode: http.StatusOK,
+			mockLoginCode:  http.StatusCreated,
+			mockJobsCode:   http.StatusOK,
+			mockJobsBody:   `[]`,
+			wantStatusCode: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scicatServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Mock /login
+				if r.URL.Path == "/api/v3/auth/login" {
+					if tt.mockLoginCode != http.StatusCreated {
+						w.WriteHeader(tt.mockLoginCode)
+						return
+					}
+					w.WriteHeader(http.StatusCreated)
+					// Return a valid dummy token
+					json.NewEncoder(w).Encode(SciCatLoginResponse{
+						AccessToken: "test-token-123",
+						ExpiresIn:   3600,
+						CreatedAt:   time.Now().Format(time.RFC3339),
+					})
+					return
+				}
+
+				// Mock /datasets/{pid}
+				if strings.Contains(r.URL.Path, "/api/v3/datasets/") {
+					w.WriteHeader(tt.mockPublicCode)
+					return
+				}
+
+				// Mock /jobs
+				if r.URL.Path == "/api/v4/jobs" {
+					if tt.mockJobsCode != http.StatusOK {
+						w.WriteHeader(tt.mockJobsCode)
+						return
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.Write([]byte(tt.mockJobsBody))
+					return
+				}
+
+				http.NotFound(w, r)
+			}))
+			defer scicatServer.Close()
+
+			h := NewSciCatHandler(getTestConfig(scicatServer.URL))
+
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			req, _ := http.NewRequest("GET", "/?dataset="+tt.datasetPid, nil)
+			c.Request = req
+
+			h.GetActiveUrls(c)
+
+			if w.Code != tt.wantStatusCode {
+				t.Errorf("GetActiveUrls() status = %v, want %v", w.Code, tt.wantStatusCode)
+			}
+
+			if tt.wantStatusCode == http.StatusOK {
+				var resp SciCatUrlResponse
+				if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+					t.Errorf("Failed to unmarshal success response: %v", err)
+				}
+				if len(resp.URLs) == 0 {
+					t.Error("Expected URLs in success response, got empty list")
+				}
+			}
+		})
+	}
+}
