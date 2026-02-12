@@ -8,12 +8,11 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 )
 
 type SciCatUrlResponse struct {
@@ -37,30 +36,16 @@ type SciCatLoginResponse struct {
 	CreatedAt   string `json:"created"`
 }
 
-type Config struct {
-	sciCatURL string
-	username  string
-	password  string
-}
-
 type SciCatHandler struct {
-	config     Config
+	config     *config.Config
 	tokenMutex sync.RWMutex
 	token      SciCatLoginResponse
 }
 
-func NewSciCatHandler() *SciCatHandler {
-	scicatURL := os.Getenv("SCICAT_URL")
-	if scicatURL == "" {
-		log.Fatal("SCICAT_URL environment variable is required")
-	}
+func NewSciCatHandler(cfg *config.Config) *SciCatHandler {
 
 	return &SciCatHandler{
-		config: Config{
-			sciCatURL: strings.TrimRight(scicatURL, "/"),
-			username:  "jobManager",
-			password:  os.Getenv("JOB_MANAGER_PASSWORD"),
-		},
+		config: cfg,
 	}
 }
 
@@ -68,14 +53,14 @@ func (h *SciCatHandler) logIn() (SciCatLoginResponse, error) {
 	var loginResp SciCatLoginResponse
 
 	creds, err := json.Marshal(gin.H{
-		"username": h.config.username,
-		"password": h.config.password,
+		"username": h.config.JobManagerUsername,
+		"password": h.config.JobManagerPassword,
 	})
 	if err != nil {
 		return loginResp, fmt.Errorf("failed to marshal credentials: %w", err)
 	}
 
-	resp, err := http.Post(fmt.Sprintf("%s/api/v3/auth/login", h.config.sciCatURL), "application/json", bytes.NewReader(creds))
+	resp, err := http.Post(fmt.Sprintf("%s/api/v3/auth/login", h.config.SciCatURL), "application/json", bytes.NewReader(creds))
 	if err != nil {
 		return loginResp, fmt.Errorf("POST /login failed: %w", err)
 	}
@@ -116,7 +101,7 @@ func (h *SciCatHandler) isPublic(datasetPid string) bool {
 		return false
 	}
 
-	u, err := url.Parse(fmt.Sprintf("%s/api/v3/datasets/%s", h.config.sciCatURL, url.PathEscape(datasetPid)))
+	u, err := url.Parse(fmt.Sprintf("%s/api/v3/datasets/%s", h.config.SciCatURL, url.PathEscape(datasetPid)))
 	if err != nil {
 		log.Printf("failed to parse dataset URL: %v", err)
 		return false
@@ -185,7 +170,7 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 		return
 	}
 
-	u, err := url.Parse(fmt.Sprintf("%s/api/v4/jobs", h.config.sciCatURL))
+	u, err := url.Parse(fmt.Sprintf("%s/api/v4/jobs", h.config.SciCatURL))
 	if err != nil {
 		log.Printf("Failed to parse URL: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
