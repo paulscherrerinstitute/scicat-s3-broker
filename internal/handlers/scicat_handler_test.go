@@ -150,6 +150,12 @@ func TestGetActiveUrls(t *testing.T) {
 			wantStatusCode: http.StatusOK,
 		},
 		{
+			name:           "No dataset",
+			datasetPid:     "",
+			mockPublicCode: http.StatusNotFound,
+			wantStatusCode: http.StatusBadRequest,
+		},
+		{
 			name:           "Dataset Not Public or Not Found",
 			datasetPid:     "private-pid-or-no-such-pid",
 			mockPublicCode: http.StatusNotFound,

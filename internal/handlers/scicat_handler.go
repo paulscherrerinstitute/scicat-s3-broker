@@ -139,6 +139,13 @@ func (h *SciCatHandler) getToken() (string, error) {
 func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 	dataset := c.Query("dataset")
 
+	if dataset == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "dataset parameter is required",
+		})
+		return
+	}
+
 	if !h.isPublic(dataset) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Dataset not accessible"})
 		return
