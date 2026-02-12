@@ -21,7 +21,7 @@ Also included is a simple CLI client that can be used as an AWS CLI credential p
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.25+
 - SciCat backend instance
 - Ceph or AWS-compatible S3 backend with STS enabled
 
@@ -39,6 +39,9 @@ The following environement variables are available for configuration:
 
 \* JOB_MANAGER_PASSWORD is _required_ for the `/get-urls` endpoint. If not set, the server returns `HTTP 501 Not Implemented`.
 It is not required for the `/get-s3-creds` endpoint.
+
+#### AWS Config
+The AWS shared config and credentials files are in [env/](./env) directory. Copy `credentials.example` to `credentials` and replace with your secret / access key.
 
 ### Run locally
 
