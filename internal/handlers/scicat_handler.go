@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -16,12 +17,11 @@ import (
 )
 
 type SciCatUrlResponse struct {
-	URLs    []string  `json:"urls"`
+	URL     string    `json:"url"`
 	Expires time.Time `json:"expires"`
 }
 
 type JobsResponse struct {
-	CreationTime    string `json:"createdAt"`
 	JobResultObject struct {
 		Result []struct {
 			DatasetId string `json:"datasetId"`
@@ -47,6 +47,8 @@ func NewSciCatHandler(cfg *config.Config) *SciCatHandler {
 		config: cfg,
 	}
 }
+
+const iso8601Layout = "20060102T150405Z"
 
 func (h *SciCatHandler) logIn() (SciCatLoginResponse, error) {
 	var loginResp SciCatLoginResponse
@@ -203,6 +205,12 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Invalid response code from /jobs: %v", resp.StatusCode)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
 	var jobResp []JobsResponse
 	err = json.NewDecoder(resp.Body).Decode(&jobResp)
 	if err != nil {
@@ -212,7 +220,7 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 	}
 
 	if len(jobResp) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no URLs available"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "No URLs available. Submit a URL retrive job in SciCat"})
 		return
 	}
 
@@ -225,23 +233,45 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 	c.PureJSON(http.StatusOK, scicatUrlResp)
 }
 
-func toSciCatUrlResponse(pid string, resp JobsResponse) (*SciCatUrlResponse, error) {
+// parseExpirationTime computes the expiration time from
+// X-Amz-Date and X-Amz-Expires query params. See
+// https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html
+func parseExpirationTime(urlstr string) (time.Time, error) {
+	var result time.Time
+	u, err := url.Parse(urlstr)
+	if err != nil {
+		return result, fmt.Errorf("failed to parse url: %v", err)
+	}
+	date, exp := u.Query().Get("X-Amz-Date"), u.Query().Get("X-Amz-Expires")
+	if date == "" || exp == "" {
+		return result, fmt.Errorf("required params X-Amz-Date and X-Amz-Expires not present in %v", urlstr)
+	}
+	result, err = time.Parse(iso8601Layout, date)
+	if err != nil {
+		return result, fmt.Errorf("failed to parse date according to iso8601, %v", date)
+	}
+	expint, err := strconv.Atoi(exp)
+	if err != nil {
+		return result, fmt.Errorf("failed to parse expriry to int %v", exp)
+	}
+	return result.Add(time.Second * time.Duration(expint)), nil
+}
+
+func toSciCatUrlResponse(pid string, resp JobsResponse) ([]SciCatUrlResponse, error) {
 	if len(resp.JobResultObject.Result) == 0 {
 		return nil, errors.New("no URLs available in job response")
 	}
 
-	result := []string{}
+	result := []SciCatUrlResponse{}
 	for _, x := range resp.JobResultObject.Result {
 		if x.DatasetId == pid {
-			result = append(result, x.Url)
+			expirationTime, err := parseExpirationTime(x.Url)
+			if err != nil {
+				return result, err
+			}
+			result = append(result, SciCatUrlResponse{x.Url, expirationTime})
 		}
 	}
 
-	creationTime, err := time.Parse(time.RFC3339, resp.CreationTime)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse creation time: %w", err)
-	}
-	const urlExpireDays = 7
-	expirationTime := creationTime.AddDate(0, 0, urlExpireDays)
-	return &SciCatUrlResponse{result, expirationTime}, nil
+	return result, nil
 }

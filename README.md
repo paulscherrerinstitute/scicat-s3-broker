@@ -84,12 +84,12 @@ curl http://localhost:8080/get-urls?dataset=20.500.11935/0e54729b-75c5-42fa-a628
 Response:
 
 ```json
-{
-  "urls": [
-    "https://rgw.cscs.ch/firecrest_hpc%3Anoderedd/datastblockfile.tar?Signature=xyz123"
-  ],
-  "expires": "2026-02-18T09:34:41.038Z"
-}
+[
+  {
+    "url": "https://rgw.cscs.ch/firecrest_hpc%3Anoderedd/8414927a-55cb-4b03-8ed5-3af195fe0524/0e54729b-75c5-42fa-a628-aae5dc3f3dae_0_2022-09-08-14-52-32.tar?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=S82RBBK66XUCNDL3NGXD%2F20260211%2Fcscs-zonegroup%2Fs3%2Faws4_request&X-Amz-Date=20260211T093601Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=422a4f7e759cf51c99459fa32596baec37c1064fd6c5c9900cc488c80ece097a",
+    "expires": "2026-02-18T09:36:01Z"
+  }
+]
 ```
 
 #### Client

@@ -31,8 +31,9 @@ func makeJobResponse(t *testing.T, jsonStr string) JobsResponse {
 }
 
 func TestToSciCatUrlResponse(t *testing.T) {
-	now := time.Now()
-	validTimeStr := now.Format(time.RFC3339)
+	now := time.Now().UTC()
+	validTimeIso8601Str := now.Format(iso8601Layout)
+	expiresSeconds := 604800
 
 	tests := []struct {
 		name          string
@@ -45,13 +46,12 @@ func TestToSciCatUrlResponse(t *testing.T) {
 			name: "Valid Single Result",
 			pid:  "pid-123",
 			inputJSON: fmt.Sprintf(`{
-				"createdAt": "%s",
 				"jobResultObject": {
 					"result": [
-						{"datasetId": "pid-123", "url": "s3://bucket/file1"}
+						{"datasetId": "pid-123", "url": "s3://bucket/file1?X-Amz-Date=%s&X-Amz-Expires=%v"}
 					]
 				}
-			}`, validTimeStr),
+			}`, validTimeIso8601Str, expiresSeconds),
 			wantErr:       false,
 			expectedCount: 1,
 		},
@@ -59,39 +59,48 @@ func TestToSciCatUrlResponse(t *testing.T) {
 			name: "Filter Irrelevant PIDs",
 			pid:  "pid-123",
 			inputJSON: fmt.Sprintf(`{
-				"createdAt": "%s",
 				"jobResultObject": {
 					"result": [
-						{"datasetId": "pid-123", "url": "s3://bucket/match"},
+						{"datasetId": "pid-123", "url": "s3://bucket/match?X-Amz-Date=%s&X-Amz-Expires=%v"},
 						{"datasetId": "pid-456", "url": "s3://bucket/ignore"}
 					]
 				}
-			}`, validTimeStr),
+			}`, validTimeIso8601Str, expiresSeconds),
 			wantErr:       false,
 			expectedCount: 1,
 		},
 		{
 			name: "Empty Result List",
 			pid:  "pid-123",
-			inputJSON: fmt.Sprintf(`{
-				"createdAt": "%s",
+			inputJSON: `{
 				"jobResultObject": {
 					"result": []
 				}
-			}`, validTimeStr),
+			}`,
 			wantErr: true,
 		},
 		{
 			name: "Invalid Time Format",
 			pid:  "pid-123",
 			inputJSON: `{
-				"createdAt": "not-a-timestamp",
 				"jobResultObject": {
 					"result": [
-						{"datasetId": "pid-123", "url": "s3://bucket/file1"}
+						{"datasetId": "pid-123", "url": "s3://bucket/file1?X-Amz-Date=not-a-timestamp"}
 					]
 				}
 			}`,
+			wantErr: true,
+		},
+		{
+			name: "Missing required url param X-Amz-Expires",
+			pid:  "pid-123",
+			inputJSON: fmt.Sprintf(`{
+				"jobResultObject": {
+					"result": [
+						{"datasetId": "pid-123", "url": "s3://bucket/file1?X-Amz-Date=%s"}
+					]
+				}
+			}`, validTimeIso8601Str),
 			wantErr: true,
 		},
 	}
@@ -107,16 +116,15 @@ func TestToSciCatUrlResponse(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				if len(got.URLs) != tt.expectedCount {
-					t.Errorf("Expected %d URLs, got %d", tt.expectedCount, len(got.URLs))
+				if len(got) != tt.expectedCount {
+					t.Errorf("Expected %d URLs, got %d", tt.expectedCount, len(got))
 				}
 				// Verify expiration is 7 days from creation
-				creationTime, _ := time.Parse(time.RFC3339, jobResp.CreationTime)
-				expectedExp := creationTime.AddDate(0, 0, 7)
-				diff := got.Expires.Sub(expectedExp)
+				expectedExp := now.Add(time.Second * time.Duration(expiresSeconds))
+				diff := got[0].Expires.Sub(expectedExp)
 				tolerance := 1 * time.Second
 				if diff < -tolerance || diff > tolerance {
-					t.Errorf("Expiration date mismatch.\nGot:  %v\nWant: %v\nDiff: %v", got.Expires, expectedExp, diff)
+					t.Errorf("Expiration date mismatch.\nGot:  %v\nWant: %v\nDiff: %v", got[0].Expires, expectedExp, diff)
 				}
 			}
 		})
@@ -125,6 +133,9 @@ func TestToSciCatUrlResponse(t *testing.T) {
 
 func TestGetActiveUrls(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	now := time.Now().UTC()
+	validTimeIso8601Str := now.Format(iso8601Layout)
+	expiresSeconds := 604800
 
 	tests := []struct {
 		name           string
@@ -142,11 +153,10 @@ func TestGetActiveUrls(t *testing.T) {
 			mockLoginCode:  http.StatusCreated,
 			mockJobsCode:   http.StatusOK,
 			mockJobsBody: fmt.Sprintf(`[{
-				"createdAt": "%s",
 				"jobResultObject": {
-					"result": [{"datasetId": "valid-pid", "url": "http://result"}]
+					"result": [{"datasetId": "valid-pid", "url": "http://result?X-Amz-Date=%s&X-Amz-Expires=%v"}]
 				}
-			}]`, time.Now().Format(time.RFC3339)),
+			}]`, validTimeIso8601Str, expiresSeconds),
 			wantStatusCode: http.StatusOK,
 		},
 		{
@@ -242,11 +252,11 @@ func TestGetActiveUrls(t *testing.T) {
 			}
 
 			if tt.wantStatusCode == http.StatusOK {
-				var resp SciCatUrlResponse
+				var resp []SciCatUrlResponse
 				if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 					t.Errorf("Failed to unmarshal success response: %v", err)
 				}
-				if len(resp.URLs) == 0 {
+				if len(resp) == 0 {
 					t.Error("Expected URLs in success response, got empty list")
 				}
 			}
