@@ -138,6 +138,26 @@ func (h *SciCatHandler) getToken() (string, error) {
 	return h.token.AccessToken, nil
 }
 
+func makeJobsFilter(pid string) ([]byte, error) {
+	filterQuery, err := json.Marshal(gin.H{
+		"where": gin.H{
+			"type":                      gin.H{"$in": []string{"retrieve", "public"}},
+			"jobParams.option":          "URLs",
+			"statusCode":                "finishedSuccessful",
+			"jobParams.datasetList.pid": pid,
+		},
+		"sort": gin.H{"createdAt": -1},
+		"limits": gin.H{
+			"limit": 1,
+			"skip":  0,
+		}})
+	if err != nil {
+		return nil, fmt.Errorf("Failed to marshal json: %w", err)
+	}
+	return filterQuery, nil
+
+}
+
 func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 	dataset := c.Query("dataset")
 
@@ -160,20 +180,9 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 	}
 	authHeader := fmt.Sprintf("Bearer %s", accessToken)
 
-	filterQuery, err := json.Marshal(gin.H{
-		"where": gin.H{
-			"type":                      gin.H{"$in": []string{"retrieve", "public"}},
-			"jobParams.option":          "URLs",
-			"statusCode":                "finishedSuccessful",
-			"jobParams.datasetList.pid": dataset,
-		},
-		"sort": gin.H{"createdAt": -1},
-		"limits": gin.H{
-			"limit": 1,
-			"skip":  0,
-		}})
+	filterQuery, err := makeJobsFilter(dataset)
 	if err != nil {
-		log.Printf("Failed to marshal json: %v", err)
+		log.Printf("Error creating filter: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
