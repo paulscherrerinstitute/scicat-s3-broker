@@ -1,6 +1,6 @@
 module github.com/paulscherrerinstitute/scicat-s3-broker
 
-go 1.25.0
+go 1.25
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.31.8
