@@ -28,7 +28,7 @@ type AWSCreds struct {
 func main() {
 	dataset := flag.String("dataset", "", "Dataset PID or ID")
 	token := flag.String("token", os.Getenv("SCICAT_TOKEN"), "SciCat access token")
-	api := flag.String("api", "http://localhost:8085/get-s3-creds", "SciCat S3 creds endpoint")
+	api := flag.String("api", "http://localhost:8080/get-s3-creds", "SciCat S3 creds endpoint")
 	flag.Parse()
 
 	if *dataset == "" || *token == "" {

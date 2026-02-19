@@ -104,7 +104,7 @@ For use with AWS CLI and SDKs, build the client binary and configure your AWS pr
 
 ```bash
 go build ./cmd/client/credential_process.go
-./credential_process --dataset PID12345 --token <scicat-token> --api http://localhost:8085/get-s3-creds
+./credential_process --dataset PID12345 --token <scicat-token> --api http://localhost:8080/get-s3-creds
 ```
 
 Output:
