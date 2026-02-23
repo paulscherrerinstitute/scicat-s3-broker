@@ -175,6 +175,7 @@ func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
 
 	accessToken, err := h.getToken()
 	if err != nil {
+		log.Printf("Error in getToken: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
