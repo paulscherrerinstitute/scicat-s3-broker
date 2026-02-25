@@ -7,6 +7,7 @@ import (
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/handlers"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/scicat"
 )
 
 func main() {
@@ -16,8 +17,8 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	var h api.ServerInterface = handlers.NewSciCatHandler(cfg)
-	var h_ni api.ServerInterface = handlers.NewSciCatNotImplementedHandler()
+	var h api.ServerInterface = scicat.NewSciCatHandler(cfg)
+	var h_ni api.ServerInterface = scicat.NewSciCatNotImplementedHandler()
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
