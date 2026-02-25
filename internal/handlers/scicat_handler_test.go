@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 )
 
@@ -242,10 +243,10 @@ func TestGetActiveUrls(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 
-			req, _ := http.NewRequest("GET", "/?dataset="+tt.datasetPid, nil)
+			req, _ := http.NewRequest("GET", "datasets/urls/?id="+tt.datasetPid, nil)
 			c.Request = req
 
-			h.GetActiveUrls(c)
+			h.GetDatasetsUrls(c, api.GetDatasetsUrlsParams{Id: tt.datasetPid})
 
 			if w.Code != tt.wantStatusCode {
 				t.Errorf("GetActiveUrls() status = %v, want %v", w.Code, tt.wantStatusCode)

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 )
 
@@ -158,8 +159,8 @@ func makeJobsFilter(pid string) ([]byte, error) {
 
 }
 
-func (h *SciCatHandler) GetActiveUrls(c *gin.Context) {
-	dataset := c.Query("dataset")
+func (h *SciCatHandler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
+	dataset := id.Id
 
 	if dataset == "" {
 		c.JSON(http.StatusBadRequest, gin.H{

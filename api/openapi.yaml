@@ -1,0 +1,65 @@
+openapi: 3.0.0
+info:
+  title: SciCat S3 Broker
+  version: 0.1.0
+paths:
+  /datasets/urls:
+    get:
+      summary: Get download URLs for a dataset
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The unique identifier of the dataset
+      responses:
+        "200":
+          description: A list of URLs with their expiration times
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetUrlsResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Dataset not public or accessible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    GetUrlsResponse:
+      type: array
+      items:
+        type: object
+        properties:
+          url:
+            type: string
+            description: The URL to access the dataset
+          expires:
+            type: string
+            format: date-time
+            description: The expiration time of the URL in ISO 8601 format
+        required:
+        - expires
+        - url
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message describing the issue with the request or server
+      required:
+      - error

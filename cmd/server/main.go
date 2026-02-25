@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/handlers"
 )
@@ -16,7 +17,7 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	h := handlers.NewSciCatHandler(cfg)
+	var h api.ServerInterface = handlers.NewSciCatHandler(cfg)
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -27,7 +28,7 @@ func main() {
 	router.GET("/get-s3-creds", handlers.GetS3Credentials)
 
 	if cfg.JobManagerPassword != "" {
-		router.GET("/get-urls", h.GetActiveUrls)
+		api.RegisterHandlers(router, h)
 	} else {
 		router.GET("/get-urls", func(c *gin.Context) {
 			c.JSON(http.StatusNotImplemented, gin.H{
