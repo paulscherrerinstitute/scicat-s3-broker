@@ -132,7 +132,7 @@ func TestToSciCatUrlResponse(t *testing.T) {
 	}
 }
 
-func TestGetActiveUrls(t *testing.T) {
+func TestGetDatasetsUrls(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	now := time.Now().UTC()
 	validTimeIso8601Str := now.Format(iso8601Layout)
@@ -249,7 +249,7 @@ func TestGetActiveUrls(t *testing.T) {
 			h.GetDatasetsUrls(c, api.GetDatasetsUrlsParams{Id: tt.datasetPid})
 
 			if w.Code != tt.wantStatusCode {
-				t.Errorf("GetActiveUrls() status = %v, want %v", w.Code, tt.wantStatusCode)
+				t.Errorf("GetDatasetsUrls() status = %v, want %v", w.Code, tt.wantStatusCode)
 			}
 
 			if tt.wantStatusCode == http.StatusOK {

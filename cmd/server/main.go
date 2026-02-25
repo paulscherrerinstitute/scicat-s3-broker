@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
@@ -18,6 +17,7 @@ func main() {
 	}
 
 	var h api.ServerInterface = handlers.NewSciCatHandler(cfg)
+	var h_ni api.ServerInterface = handlers.NewSciCatNotImplementedHandler()
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -30,11 +30,7 @@ func main() {
 	if cfg.JobManagerPassword != "" {
 		api.RegisterHandlers(router, h)
 	} else {
-		router.GET("/get-urls", func(c *gin.Context) {
-			c.JSON(http.StatusNotImplemented, gin.H{
-				"error": "This endpoint is disabled",
-			})
-		})
+		api.RegisterHandlers(router, h_ni)
 	}
 
 	if err := router.Run(); err != nil {

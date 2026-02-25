@@ -49,6 +49,17 @@ func NewSciCatHandler(cfg *config.Config) *SciCatHandler {
 	}
 }
 
+type SciCatNotImplHandler struct{}
+
+func NewSciCatNotImplementedHandler() *SciCatNotImplHandler {
+	return &SciCatNotImplHandler{}
+}
+func (*SciCatNotImplHandler) GetDatasetsUrls(c *gin.Context, _ api.GetDatasetsUrlsParams) {
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error": "This endpoint is disabled",
+	})
+}
+
 const iso8601Layout = "20060102T150405Z"
 
 func (h *SciCatHandler) logIn() (SciCatLoginResponse, error) {
