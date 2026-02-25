@@ -17,8 +17,7 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	var h api.ServerInterface = scicat.NewSciCatHandler(cfg)
-	var h_ni api.ServerInterface = scicat.NewSciCatNotImplementedHandler()
+	s3Handler := handlers.NewS3Handler()
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -26,12 +25,25 @@ func main() {
 		})
 	})
 
-	router.GET("/get-s3-creds", handlers.GetS3Credentials)
-
 	if cfg.JobManagerPassword != "" {
+		var h api.ServerInterface = struct {
+			*scicat.SciCatHandler
+			*handlers.S3Handler
+		}{
+			scicat.NewSciCatHandler(cfg),
+			s3Handler,
+		}
 		api.RegisterHandlers(router, h)
 	} else {
-		api.RegisterHandlers(router, h_ni)
+		var h api.ServerInterface = struct {
+			*scicat.SciCatNotImplHandler
+			*handlers.S3Handler
+		}{
+			scicat.NewSciCatNotImplementedHandler(),
+			s3Handler,
+		}
+
+		api.RegisterHandlers(router, h)
 	}
 
 	if err := router.Run(); err != nil {

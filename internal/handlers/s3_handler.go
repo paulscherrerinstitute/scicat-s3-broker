@@ -12,8 +12,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/models"
 )
+
+type S3Handler struct{}
+
+func NewS3Handler() *S3Handler {
+	return &S3Handler{}
+}
+
+func (*S3Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
+	GetS3Credentials(c)
+}
 
 // GetS3Credentials handles the /get-s3-creds endpoint
 func GetS3Credentials(c *gin.Context) {

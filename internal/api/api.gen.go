@@ -27,6 +27,12 @@ type GetUrlsResponse = []struct {
 	Url string `json:"url"`
 }
 
+// GetDatasetsS3CredsParams defines parameters for GetDatasetsS3Creds.
+type GetDatasetsS3CredsParams struct {
+	// Dataset The unique identifier of the dataset
+	Dataset string `form:"dataset" json:"dataset"`
+}
+
 // GetDatasetsUrlsParams defines parameters for GetDatasetsUrls.
 type GetDatasetsUrlsParams struct {
 	// Id The unique identifier of the dataset
@@ -35,6 +41,9 @@ type GetDatasetsUrlsParams struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Get temporary S3 credentials for a dataset
+	// (GET /datasets/s3-creds)
+	GetDatasetsS3Creds(c *gin.Context, params GetDatasetsS3CredsParams)
 	// Get download URLs for a dataset
 	// (GET /datasets/urls)
 	GetDatasetsUrls(c *gin.Context, params GetDatasetsUrlsParams)
@@ -48,6 +57,39 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// GetDatasetsS3Creds operation middleware
+func (siw *ServerInterfaceWrapper) GetDatasetsS3Creds(c *gin.Context) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDatasetsS3CredsParams
+
+	// ------------- Required query parameter "dataset" -------------
+
+	if paramValue := c.Query("dataset"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument dataset is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "dataset", c.Request.URL.Query(), &params.Dataset)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter dataset: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetDatasetsS3Creds(c, params)
+}
 
 // GetDatasetsUrls operation middleware
 func (siw *ServerInterfaceWrapper) GetDatasetsUrls(c *gin.Context) {
@@ -109,5 +151,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.GET(options.BaseURL+"/datasets/s3-creds", wrapper.GetDatasetsS3Creds)
 	router.GET(options.BaseURL+"/datasets/urls", wrapper.GetDatasetsUrls)
 }

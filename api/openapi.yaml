@@ -38,6 +38,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /datasets/s3-creds:
+    get:
+      summary: Get temporary S3 credentials for a dataset
+      parameters:
+        - in: query
+          name: dataset
+          required: true
+          schema:
+            type: string
+          description: The unique identifier of the dataset
+      responses:
+        "200":
+          description: Temporary S3 credentials for the dataset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/S3CredentialsResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Dataset not public or accessible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     GetUrlsResponse:
@@ -55,6 +91,27 @@ components:
         required:
         - expires
         - url
+    S3CredentialsResponse:
+      type: object
+      properties:
+        accessKeyId:
+          type: string
+          description: The temporary AWS access key ID
+        secretAccessKey:
+          type: string
+          description: The temporary AWS secret access key
+        sessionToken:
+          type: string
+          description: The temporary AWS session token
+        expiration:
+          type: string
+          format: date-time
+          description: The expiration time of the credentials in ISO 8601 format
+      required:
+      - accessKeyId
+      - secretAccessKey
+      - sessionToken
+      - expiration
     ErrorResponse:
       type: object
       properties:
