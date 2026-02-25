@@ -24,11 +24,14 @@ func main() {
 			"status": "healthy",
 		})
 	})
+	type SciCatHandler = scicat.Handler
+	type SciCatNotImplHandler = scicat.NotImplHandler
+	type S3Handler = s3.Handler
 
 	if cfg.JobManagerPassword != "" {
 		var h api.ServerInterface = struct {
-			*scicat.SciCatHandler
-			*s3.S3Handler
+			*SciCatHandler
+			*S3Handler
 		}{
 			scicat.NewHandler(cfg),
 			s3Handler,
@@ -36,8 +39,8 @@ func main() {
 		api.RegisterHandlers(router, h)
 	} else {
 		var h api.ServerInterface = struct {
-			*scicat.SciCatNotImplHandler
-			*s3.S3Handler
+			*SciCatNotImplHandler
+			*S3Handler
 		}{
 			scicat.NewNoImplHandler(),
 			s3Handler,

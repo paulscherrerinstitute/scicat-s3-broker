@@ -15,13 +15,13 @@ import (
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 )
 
-type S3Handler struct{}
+type Handler struct{}
 
-func NewHandler() *S3Handler {
-	return &S3Handler{}
+func NewHandler() *Handler {
+	return &Handler{}
 }
 
-func (*S3Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
+func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
 	GetS3Credentials(c)
 }
 

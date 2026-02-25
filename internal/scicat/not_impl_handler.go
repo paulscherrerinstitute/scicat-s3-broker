@@ -7,12 +7,12 @@ import (
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 )
 
-type SciCatNotImplHandler struct{}
+type NotImplHandler struct{}
 
-func NewNoImplHandler() *SciCatNotImplHandler {
-	return &SciCatNotImplHandler{}
+func NewNoImplHandler() *NotImplHandler {
+	return &NotImplHandler{}
 }
-func (*SciCatNotImplHandler) GetDatasetsUrls(c *gin.Context, _ api.GetDatasetsUrlsParams) {
+func (*NotImplHandler) GetDatasetsUrls(c *gin.Context, _ api.GetDatasetsUrlsParams) {
 	c.JSON(http.StatusNotImplemented, gin.H{
 		"error": "This endpoint is disabled",
 	})

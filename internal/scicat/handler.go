@@ -37,21 +37,21 @@ type SciCatLoginResponse struct {
 	CreatedAt   string `json:"created"`
 }
 
-type SciCatHandler struct {
+type Handler struct {
 	config     *config.Config
 	tokenMutex sync.RWMutex
 	token      SciCatLoginResponse
 }
 
-func NewHandler(cfg *config.Config) *SciCatHandler {
-	return &SciCatHandler{
+func NewHandler(cfg *config.Config) *Handler {
+	return &Handler{
 		config: cfg,
 	}
 }
 
 const iso8601Layout = "20060102T150405Z"
 
-func (h *SciCatHandler) logIn() (SciCatLoginResponse, error) {
+func (h *Handler) logIn() (SciCatLoginResponse, error) {
 	var loginResp SciCatLoginResponse
 
 	creds, err := json.Marshal(gin.H{
@@ -79,7 +79,7 @@ func (h *SciCatHandler) logIn() (SciCatLoginResponse, error) {
 	return loginResp, nil
 }
 
-func (h *SciCatHandler) isTokenExpired() bool {
+func (h *Handler) isTokenExpired() bool {
 	h.tokenMutex.RLock()
 	defer h.tokenMutex.RUnlock()
 
@@ -97,7 +97,7 @@ func (h *SciCatHandler) isTokenExpired() bool {
 	return time.Now().Add(10 * time.Minute).After(expirationTime)
 }
 
-func (h *SciCatHandler) isPublic(datasetPid string) bool {
+func (h *Handler) isPublic(datasetPid string) bool {
 	filterQuery, err := json.Marshal(gin.H{"fields": []string{"_id"}})
 	if err != nil {
 		return false
@@ -122,7 +122,7 @@ func (h *SciCatHandler) isPublic(datasetPid string) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-func (h *SciCatHandler) getToken() (string, error) {
+func (h *Handler) getToken() (string, error) {
 	if h.isTokenExpired() {
 		log.Println("refreshing expired token")
 		loginResp, err := h.logIn()
@@ -159,7 +159,7 @@ func makeJobsFilter(pid string) ([]byte, error) {
 
 }
 
-func (h *SciCatHandler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
+func (h *Handler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
 	dataset := id.Id
 
 	if dataset == "" {
