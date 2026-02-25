@@ -9,7 +9,7 @@ import (
 
 type SciCatNotImplHandler struct{}
 
-func NewSciCatNotImplementedHandler() *SciCatNotImplHandler {
+func NewNoImplHandler() *SciCatNotImplHandler {
 	return &SciCatNotImplHandler{}
 }
 func (*SciCatNotImplHandler) GetDatasetsUrls(c *gin.Context, _ api.GetDatasetsUrlsParams) {

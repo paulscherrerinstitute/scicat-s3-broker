@@ -10,7 +10,7 @@ import (
 )
 
 func TestGetDatasetsUrls_ReturnsNotImplemented(t *testing.T) {
-	handler := NewSciCatNotImplementedHandler()
+	handler := NewNoImplHandler()
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

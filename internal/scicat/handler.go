@@ -43,7 +43,7 @@ type SciCatHandler struct {
 	token      SciCatLoginResponse
 }
 
-func NewSciCatHandler(cfg *config.Config) *SciCatHandler {
+func NewHandler(cfg *config.Config) *SciCatHandler {
 	return &SciCatHandler{
 		config: cfg,
 	}

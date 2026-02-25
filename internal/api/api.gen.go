@@ -27,6 +27,21 @@ type GetUrlsResponse = []struct {
 	Url string `json:"url"`
 }
 
+// S3CredentialsResponse defines model for S3CredentialsResponse.
+type S3CredentialsResponse struct {
+	// AccessKeyId The temporary AWS access key ID
+	AccessKeyId string `json:"accessKeyId"`
+
+	// Expiration The expiration time of the credentials in ISO 8601 format
+	Expiration time.Time `json:"expiration"`
+
+	// SecretAccessKey The temporary AWS secret access key
+	SecretAccessKey string `json:"secretAccessKey"`
+
+	// SessionToken The temporary AWS session token
+	SessionToken string `json:"sessionToken"`
+}
+
 // GetDatasetsS3CredsParams defines parameters for GetDatasetsS3Creds.
 type GetDatasetsS3CredsParams struct {
 	// Dataset The unique identifier of the dataset

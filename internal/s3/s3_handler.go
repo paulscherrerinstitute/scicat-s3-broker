@@ -1,4 +1,4 @@
-package handlers
+package s3
 
 import (
 	"net/http"
@@ -13,12 +13,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
-	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/models"
 )
 
 type S3Handler struct{}
 
-func NewS3Handler() *S3Handler {
+func NewHandler() *S3Handler {
 	return &S3Handler{}
 }
 
@@ -123,7 +122,7 @@ func GetS3Credentials(c *gin.Context) {
 		return
 	}
 
-	response := models.S3CredentialsResponse{
+	response := S3CredentialsResponse{
 		AccessKey:    *stsOut.Credentials.AccessKeyId,
 		SecretKey:    *stsOut.Credentials.SecretAccessKey,
 		SessionToken: *stsOut.Credentials.SessionToken,
