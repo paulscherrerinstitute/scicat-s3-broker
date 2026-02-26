@@ -21,7 +21,7 @@ type DatasetsUrlResponse = []struct {
 	// Url The URL to access the dataset
 	Url string `json:"url"`
 
-	// Expires The expiration time of the URL in ISO 8601 format
+	// Expires The expiration time of the URL in RFC 3339 format
 	Expires time.Time `json:"expires"`
 }
 
@@ -36,7 +36,7 @@ type S3CredentialsResponse struct {
 	// AccessKey The temporary AWS access key ID
 	AccessKey string `json:"access_key"`
 
-	// ExpiryTime The expiration time of the credentials in ISO 8601 format
+	// ExpiryTime The expiration time of the credentials in RFC 3339 format
 	ExpiryTime time.Time `json:"expiry_time"`
 
 	// SecretAccessKey The temporary AWS secret access key

@@ -61,7 +61,7 @@ The server will start on port `8080` by default, or `${PORT}` env variable if sp
 
 ```bash
 curl -H "Authorization: Bearer <scicat-token>" \
-  "http://localhost:8080/datasets/s3-creds?dataset=PID12345"
+  "http://localhost:8080/datasets/s3-creds?pid=PID12345"
 ```
 
 Response:
@@ -132,7 +132,7 @@ cmd/            # main entrypoints
     client/         # CLI client for credential_process
 internal/
     config/         # Server configuration
-    api/            # Generated server interface
+    api/            # Generated server interface and models
     s3/             # S3 handlers and related functionality 
     scicat/         # SciCat handlers and realted functionality
 ```
