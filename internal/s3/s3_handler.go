@@ -21,7 +21,7 @@ func NewHandler() *Handler {
 	return &Handler{}
 }
 
-// GetS3Credentials handles the /get-s3-creds endpoint
+// GetDatasetsS3Creds handles the /datasets/s3-creds endpoint
 func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
 	// Get the dataset parameter from query string
 	dataset := params.Pid

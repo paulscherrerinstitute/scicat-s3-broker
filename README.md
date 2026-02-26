@@ -37,8 +37,8 @@ The following environement variables are available for configuration:
 | PORT                 | no       | 8080       | The port to serve from. This is a Gin configuration         |                                    |
 | GIN_MODE             | no       | debug      | Set to `release` for production                             |                                    |
 
-\* JOB_MANAGER_PASSWORD is _required_ for the `/get-urls` endpoint. If not set, the server returns `HTTP 501 Not Implemented`.
-It is not required for the `/get-s3-creds` endpoint.
+\* JOB_MANAGER_PASSWORD is _required_ for the `/datasets/urls` endpoint. If not set, the server returns `HTTP 501 Not Implemented`.
+It is not required for the `/datasets/s3-creds` endpoint.
 
 #### AWS Config
 The AWS shared config and credentials files are in [env/](./env) directory. Copy `credentials.example` to `credentials` and replace with your secret / access key.
@@ -57,11 +57,11 @@ The server will start on port `8080` by default, or `${PORT}` env variable if sp
 
 ##### Example requests
 
-###### get-s3-creds
+###### /datasets/s3-creds
 
 ```bash
 curl -H "Authorization: Bearer <scicat-token>" \
-  "http://localhost:8080/get-s3-creds?dataset=PID12345"
+  "http://localhost:8080/datasets/s3-creds?dataset=PID12345"
 ```
 
 Response:
@@ -75,10 +75,10 @@ Response:
 }
 ```
 
-###### get-urls
+###### /datasets/urls
 
 ```bash
-curl http://localhost:8080/get-urls?dataset=20.500.11935/0e54729b-75c5-42fa-a628-aae5dc3f3dae
+curl http://localhost:8080/datasets/urls?pid=20.500.11935/0e54729b-75c5-42fa-a628-aae5dc3f3dae
 ```
 
 Response:
@@ -97,14 +97,14 @@ Response:
 ```bash
 git clone https://github.com/paulscherrerinstitute/scicat-s3-broker.git
 cd scicat-s3-broker
-go run ./cmd/client/credential_process.go --dataset PID12345 --token <scicat-token> --api http://localhost:8085/get-s3-creds
+go run ./cmd/client/credential_process.go --dataset PID12345 --token <scicat-token> --api http://localhost:8085/datasets/s3-creds
 ```
 
 For use with AWS CLI and SDKs, build the client binary and configure your AWS profile to use it as a `credential_process`:
 
 ```bash
 go build ./cmd/client/credential_process.go
-./credential_process --dataset PID12345 --token <scicat-token> --api http://localhost:8080/get-s3-creds
+./credential_process --dataset PID12345 --token <scicat-token> --api http://localhost:8080/datasets/s3-creds
 ```
 
 Output:
@@ -123,7 +123,8 @@ Output:
 
 ## Development
 
-Project layout follows [golang-standards/project-layout](https://github.com/golang-standards/project-layout):
+Project layout follows [golang-standards/project-layout](https://github.com/golang-standards/project-layout).
+Within `/internal`, we use group packages by features.
 
 ```
 cmd/            # main entrypoints
@@ -131,8 +132,9 @@ cmd/            # main entrypoints
     client/         # CLI client for credential_process
 internal/
     config/         # Server configuration
-    handlers/       # API handlers
-    models/         # API request/response models, etc.
+    api/            # Generated server interface
+    s3/             # S3 handlers and related functionality 
+    scicat/         # SciCat handlers and realted functionality
 ```
 
 ---

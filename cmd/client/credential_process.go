@@ -8,14 +8,11 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 )
 
-type SciCatCreds struct {
-	AccessKeyID     string    `json:"access_key"`
-	SecretAccessKey string    `json:"secret_key"`
-	SessionToken    string    `json:"session_token"`
-	Expiry          time.Time `json:"expiry_time"`
-}
+type SciCatCreds = api.S3CredentialsResponse
 
 type AWSCreds struct {
 	Version         int    `json:"Version"`
@@ -67,10 +64,10 @@ func main() {
 	// Convert to AWS credential_process format
 	aws := AWSCreds{
 		Version:         1,
-		AccessKeyID:     sc.AccessKeyID,
+		AccessKeyID:     sc.AccessKey,
 		SecretAccessKey: sc.SecretAccessKey,
 		SessionToken:    sc.SessionToken,
-		Expiration:      sc.Expiry.UTC().Format(time.RFC3339),
+		Expiration:      sc.ExpiryTime.UTC().Format(time.RFC3339),
 	}
 
 	enc := json.NewEncoder(os.Stdout)
