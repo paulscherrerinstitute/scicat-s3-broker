@@ -109,10 +109,10 @@ func TestToSciCatUrlResponse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			jobResp := makeJobResponse(t, tt.inputJSON)
-			got, err := toSciCatUrlResponse(tt.pid, jobResp)
+			got, err := toDatasetsUrlResponse(tt.pid, jobResp)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("toSciCatUrlResponse() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("toDatasetsUrlResponse() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
@@ -246,7 +246,7 @@ func TestGetDatasetsUrls(t *testing.T) {
 			req, _ := http.NewRequest("GET", "datasets/urls/?id="+tt.datasetPid, nil)
 			c.Request = req
 
-			h.GetDatasetsUrls(c, api.GetDatasetsUrlsParams{Id: tt.datasetPid})
+			h.GetDatasetsUrls(c, api.GetDatasetsUrlsParams{Pid: tt.datasetPid})
 
 			if w.Code != tt.wantStatusCode {
 				t.Errorf("GetDatasetsUrls() status = %v, want %v", w.Code, tt.wantStatusCode)

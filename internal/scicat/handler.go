@@ -18,7 +18,7 @@ import (
 )
 
 type SciCatUrlResponse struct {
-	URL     string    `json:"url"`
+	Url     string    `json:"url"`
 	Expires time.Time `json:"expires"`
 }
 
@@ -160,7 +160,7 @@ func makeJobsFilter(pid string) ([]byte, error) {
 }
 
 func (h *Handler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
-	dataset := id.Id
+	dataset := id.Pid
 
 	if dataset == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -235,13 +235,13 @@ func (h *Handler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) 
 		return
 	}
 
-	scicatUrlResp, err := toSciCatUrlResponse(dataset, jobResp[0])
+	datasetsUrlResp, err := toDatasetsUrlResponse(dataset, jobResp[0])
 	if err != nil {
 		log.Printf("failed to convert to URL response: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
-	c.PureJSON(http.StatusOK, scicatUrlResp)
+	c.PureJSON(http.StatusOK, datasetsUrlResp)
 }
 
 // parseExpirationTime computes the expiration time from
@@ -268,12 +268,12 @@ func parseExpirationTime(urlstr string) (time.Time, error) {
 	return result.Add(time.Second * time.Duration(expint)), nil
 }
 
-func toSciCatUrlResponse(pid string, resp JobsResponse) ([]SciCatUrlResponse, error) {
+func toDatasetsUrlResponse(pid string, resp JobsResponse) (api.DatasetsUrlResponse, error) {
 	if len(resp.JobResultObject.Result) == 0 {
 		return nil, errors.New("no URLs available in job response")
 	}
 
-	result := []SciCatUrlResponse{}
+	result := api.DatasetsUrlResponse{}
 	for _, x := range resp.JobResultObject.Result {
 		if x.DatasetId == pid {
 			expirationTime, err := parseExpirationTime(x.Url)

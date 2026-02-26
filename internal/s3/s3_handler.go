@@ -21,20 +21,10 @@ func NewHandler() *Handler {
 	return &Handler{}
 }
 
-func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
-	GetS3Credentials(c)
-}
-
 // GetS3Credentials handles the /get-s3-creds endpoint
-func GetS3Credentials(c *gin.Context) {
+func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
 	// Get the dataset parameter from query string
-	dataset := c.Query("dataset")
-	if dataset == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "dataset parameter is required",
-		})
-		return
-	}
+	dataset := params.Pid
 
 	// Get the Authorization header
 	authHeader := c.GetHeader("Authorization")
@@ -122,11 +112,11 @@ func GetS3Credentials(c *gin.Context) {
 		return
 	}
 
-	response := S3CredentialsResponse{
-		AccessKey:    *stsOut.Credentials.AccessKeyId,
-		SecretKey:    *stsOut.Credentials.SecretAccessKey,
-		SessionToken: *stsOut.Credentials.SessionToken,
-		ExpiryTime:   *stsOut.Credentials.Expiration,
+	response := api.S3CredentialsResponse{
+		AccessKey:       *stsOut.Credentials.AccessKeyId,
+		SecretAccessKey: *stsOut.Credentials.SecretAccessKey,
+		SessionToken:    *stsOut.Credentials.SessionToken,
+		ExpiryTime:      *stsOut.Credentials.Expiration,
 	}
 
 	c.JSON(http.StatusOK, response)

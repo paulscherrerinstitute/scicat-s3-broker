@@ -12,46 +12,50 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+const (
+	BearerAuthScopes = "BearerAuth.Scopes"
+)
+
+// DatasetsUrlResponse defines model for DatasetsUrlResponse.
+type DatasetsUrlResponse = []struct {
+	// Url The URL to access the dataset
+	Url string `json:"url"`
+
+	// Expires The expiration time of the URL in ISO 8601 format
+	Expires time.Time `json:"expires"`
+}
+
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
 	// Error Error message describing the issue with the request or server
 	Error string `json:"error"`
 }
 
-// GetUrlsResponse defines model for GetUrlsResponse.
-type GetUrlsResponse = []struct {
-	// Expires The expiration time of the URL in ISO 8601 format
-	Expires time.Time `json:"expires"`
-
-	// Url The URL to access the dataset
-	Url string `json:"url"`
-}
-
 // S3CredentialsResponse defines model for S3CredentialsResponse.
 type S3CredentialsResponse struct {
-	// AccessKeyId The temporary AWS access key ID
-	AccessKeyId string `json:"accessKeyId"`
+	// AccessKey The temporary AWS access key ID
+	AccessKey string `json:"access_key"`
 
-	// Expiration The expiration time of the credentials in ISO 8601 format
-	Expiration time.Time `json:"expiration"`
+	// ExpiryTime The expiration time of the credentials in ISO 8601 format
+	ExpiryTime time.Time `json:"expiry_time"`
 
 	// SecretAccessKey The temporary AWS secret access key
-	SecretAccessKey string `json:"secretAccessKey"`
+	SecretAccessKey string `json:"secret_access_key"`
 
 	// SessionToken The temporary AWS session token
-	SessionToken string `json:"sessionToken"`
+	SessionToken string `json:"session_token"`
 }
 
 // GetDatasetsS3CredsParams defines parameters for GetDatasetsS3Creds.
 type GetDatasetsS3CredsParams struct {
-	// Dataset The unique identifier of the dataset
-	Dataset string `form:"dataset" json:"dataset"`
+	// Pid The unique identifier of the dataset
+	Pid string `form:"pid" json:"pid"`
 }
 
 // GetDatasetsUrlsParams defines parameters for GetDatasetsUrls.
 type GetDatasetsUrlsParams struct {
-	// Id The unique identifier of the dataset
-	Id string `form:"id" json:"id"`
+	// Pid The unique identifier of the dataset
+	Pid string `form:"pid" json:"pid"`
 }
 
 // ServerInterface represents all server handlers.
@@ -78,21 +82,23 @@ func (siw *ServerInterfaceWrapper) GetDatasetsS3Creds(c *gin.Context) {
 
 	var err error
 
+	c.Set(BearerAuthScopes, []string{})
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetDatasetsS3CredsParams
 
-	// ------------- Required query parameter "dataset" -------------
+	// ------------- Required query parameter "pid" -------------
 
-	if paramValue := c.Query("dataset"); paramValue != "" {
+	if paramValue := c.Query("pid"); paramValue != "" {
 
 	} else {
-		siw.ErrorHandler(c, fmt.Errorf("Query argument dataset is required, but not found"), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Query argument pid is required, but not found"), http.StatusBadRequest)
 		return
 	}
 
-	err = runtime.BindQueryParameter("form", true, true, "dataset", c.Request.URL.Query(), &params.Dataset)
+	err = runtime.BindQueryParameter("form", true, true, "pid", c.Request.URL.Query(), &params.Pid)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter dataset: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pid: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -114,18 +120,18 @@ func (siw *ServerInterfaceWrapper) GetDatasetsUrls(c *gin.Context) {
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetDatasetsUrlsParams
 
-	// ------------- Required query parameter "id" -------------
+	// ------------- Required query parameter "pid" -------------
 
-	if paramValue := c.Query("id"); paramValue != "" {
+	if paramValue := c.Query("pid"); paramValue != "" {
 
 	} else {
-		siw.ErrorHandler(c, fmt.Errorf("Query argument id is required, but not found"), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Query argument pid is required, but not found"), http.StatusBadRequest)
 		return
 	}
 
-	err = runtime.BindQueryParameter("form", true, true, "id", c.Request.URL.Query(), &params.Id)
+	err = runtime.BindQueryParameter("form", true, true, "pid", c.Request.URL.Query(), &params.Pid)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pid: %w", err), http.StatusBadRequest)
 		return
 	}
 

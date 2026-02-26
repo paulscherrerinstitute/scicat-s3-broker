@@ -8,7 +8,7 @@ paths:
       summary: Get download URLs for a dataset
       parameters:
         - in: query
-          name: id
+          name: pid
           required: true
           schema:
             type: string
@@ -19,7 +19,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GetUrlsResponse"
+                $ref: "#/components/schemas/DatasetsUrlResponse"
         "400":
           description: Bad Request
           content:
@@ -41,9 +41,11 @@ paths:
   /datasets/s3-creds:
     get:
       summary: Get temporary S3 credentials for a dataset
+      security:
+        - BearerAuth: []
       parameters:
         - in: query
-          name: dataset
+          name: pid
           required: true
           schema:
             type: string
@@ -76,7 +78,7 @@ paths:
 
 components:
   schemas:
-    GetUrlsResponse:
+    DatasetsUrlResponse:
       type: array
       items:
         type: object
@@ -84,34 +86,36 @@ components:
           url:
             type: string
             description: The URL to access the dataset
+            x-order: 1
           expires:
             type: string
             format: date-time
             description: The expiration time of the URL in ISO 8601 format
+            x-order: 2
         required:
-        - expires
         - url
+        - expires
     S3CredentialsResponse:
       type: object
       properties:
-        accessKeyId:
+        access_key:
           type: string
           description: The temporary AWS access key ID
-        secretAccessKey:
+        secret_access_key:
           type: string
           description: The temporary AWS secret access key
-        sessionToken:
+        session_token:
           type: string
           description: The temporary AWS session token
-        expiration:
+        expiry_time:
           type: string
           format: date-time
           description: The expiration time of the credentials in ISO 8601 format
       required:
-      - accessKeyId
-      - secretAccessKey
-      - sessionToken
-      - expiration
+      - access_key
+      - secret_access_key
+      - session_token
+      - expiry_time
     ErrorResponse:
       type: object
       properties:
@@ -120,3 +124,7 @@ components:
           description: Error message describing the issue with the request or server
       required:
       - error
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
