@@ -162,13 +162,6 @@ func makeJobsFilter(pid string) ([]byte, error) {
 func (h *Handler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
 	dataset := id.Pid
 
-	if dataset == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "dataset parameter is required",
-		})
-		return
-	}
-
 	if !h.isPublic(dataset) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Dataset not accessible"})
 		return
