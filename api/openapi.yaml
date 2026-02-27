@@ -1,0 +1,130 @@
+openapi: 3.0.0
+info:
+  title: SciCat S3 Broker
+  version: 0.1.0
+paths:
+  /datasets/urls:
+    get:
+      summary: Get download URLs for a dataset
+      parameters:
+        - in: query
+          name: pid
+          required: true
+          schema:
+            type: string
+          description: The unique identifier of the dataset
+      responses:
+        "200":
+          description: A list of URLs with their expiration times
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatasetsUrlResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Dataset not public or accessible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /datasets/s3-creds:
+    get:
+      summary: Get temporary S3 credentials for a dataset
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: pid
+          required: true
+          schema:
+            type: string
+          description: The unique identifier of the dataset
+      responses:
+        "200":
+          description: Temporary S3 credentials for the dataset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/S3CredentialsResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Dataset not public or accessible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    DatasetsUrlResponse:
+      type: array
+      items:
+        type: object
+        properties:
+          url:
+            type: string
+            description: The URL to access the dataset
+            x-order: 1
+          expires:
+            type: string
+            format: date-time
+            description: The expiration time of the URL in RFC 3339 format
+            x-order: 2
+        required:
+        - url
+        - expires
+    S3CredentialsResponse:
+      type: object
+      properties:
+        access_key:
+          type: string
+          description: The temporary AWS access key ID
+        secret_access_key:
+          type: string
+          description: The temporary AWS secret access key
+        session_token:
+          type: string
+          description: The temporary AWS session token
+        expiry_time:
+          type: string
+          format: date-time
+          description: The expiration time of the credentials in RFC 3339 format
+      required:
+      - access_key
+      - secret_access_key
+      - session_token
+      - expiry_time
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message describing the issue with the request or server
+      required:
+      - error
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer

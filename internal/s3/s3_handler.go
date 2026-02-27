@@ -1,4 +1,4 @@
-package handlers
+package s3
 
 import (
 	"net/http"
@@ -12,19 +12,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/gin-gonic/gin"
-	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/models"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 )
 
-// GetS3Credentials handles the /get-s3-creds endpoint
-func GetS3Credentials(c *gin.Context) {
+type Handler struct{}
+
+func NewHandler() *Handler {
+	return &Handler{}
+}
+
+// GetDatasetsS3Creds handles the /datasets/s3-creds endpoint
+func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
 	// Get the dataset parameter from query string
-	dataset := c.Query("dataset")
-	if dataset == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "dataset parameter is required",
-		})
-		return
-	}
+	dataset := params.Pid
 
 	// Get the Authorization header
 	authHeader := c.GetHeader("Authorization")
@@ -112,11 +112,11 @@ func GetS3Credentials(c *gin.Context) {
 		return
 	}
 
-	response := models.S3CredentialsResponse{
-		AccessKey:    *stsOut.Credentials.AccessKeyId,
-		SecretKey:    *stsOut.Credentials.SecretAccessKey,
-		SessionToken: *stsOut.Credentials.SessionToken,
-		ExpiryTime:   *stsOut.Credentials.Expiration,
+	response := api.S3CredentialsResponse{
+		AccessKey:       *stsOut.Credentials.AccessKeyId,
+		SecretAccessKey: *stsOut.Credentials.SecretAccessKey,
+		SessionToken:    *stsOut.Credentials.SessionToken,
+		ExpiryTime:      *stsOut.Credentials.Expiration,
 	}
 
 	c.JSON(http.StatusOK, response)

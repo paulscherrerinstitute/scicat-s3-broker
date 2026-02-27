@@ -1,4 +1,4 @@
-package handlers
+package scicat
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 )
 
@@ -108,10 +109,10 @@ func TestToSciCatUrlResponse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			jobResp := makeJobResponse(t, tt.inputJSON)
-			got, err := toSciCatUrlResponse(tt.pid, jobResp)
+			got, err := toDatasetsUrlResponse(tt.pid, jobResp)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("toSciCatUrlResponse() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("toDatasetsUrlResponse() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
@@ -131,7 +132,7 @@ func TestToSciCatUrlResponse(t *testing.T) {
 	}
 }
 
-func TestGetActiveUrls(t *testing.T) {
+func TestGetDatasetsUrls(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	now := time.Now().UTC()
 	validTimeIso8601Str := now.Format(iso8601Layout)
@@ -158,12 +159,6 @@ func TestGetActiveUrls(t *testing.T) {
 				}
 			}]`, validTimeIso8601Str, expiresSeconds),
 			wantStatusCode: http.StatusOK,
-		},
-		{
-			name:           "No dataset",
-			datasetPid:     "",
-			mockPublicCode: http.StatusNotFound,
-			wantStatusCode: http.StatusBadRequest,
 		},
 		{
 			name:           "Dataset Not Public or Not Found",
@@ -237,18 +232,18 @@ func TestGetActiveUrls(t *testing.T) {
 			}))
 			defer scicatServer.Close()
 
-			h := NewSciCatHandler(getTestConfig(scicatServer.URL))
+			h := NewHandler(getTestConfig(scicatServer.URL))
 
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 
-			req, _ := http.NewRequest("GET", "/?dataset="+tt.datasetPid, nil)
+			req, _ := http.NewRequest("GET", "datasets/urls/?id="+tt.datasetPid, nil)
 			c.Request = req
 
-			h.GetActiveUrls(c)
+			h.GetDatasetsUrls(c, api.GetDatasetsUrlsParams{Pid: tt.datasetPid})
 
 			if w.Code != tt.wantStatusCode {
-				t.Errorf("GetActiveUrls() status = %v, want %v", w.Code, tt.wantStatusCode)
+				t.Errorf("GetDatasetsUrls() status = %v, want %v", w.Code, tt.wantStatusCode)
 			}
 
 			if tt.wantStatusCode == http.StatusOK {

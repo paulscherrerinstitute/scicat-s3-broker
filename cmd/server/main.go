@@ -2,11 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
-	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/handlers"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/s3"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/scicat"
 )
 
 func main() {
@@ -16,24 +17,35 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	h := handlers.NewSciCatHandler(cfg)
+	s3Handler := s3.NewHandler()
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status": "healthy",
 		})
 	})
-
-	router.GET("/get-s3-creds", handlers.GetS3Credentials)
+	type SciCatHandler = scicat.Handler
+	type SciCatNotImplHandler = scicat.NotImplHandler
+	type S3Handler = s3.Handler
 
 	if cfg.JobManagerPassword != "" {
-		router.GET("/get-urls", h.GetActiveUrls)
+		var h api.ServerInterface = struct {
+			*SciCatHandler
+			*S3Handler
+		}{
+			scicat.NewHandler(cfg),
+			s3Handler,
+		}
+		api.RegisterHandlers(router, h)
 	} else {
-		router.GET("/get-urls", func(c *gin.Context) {
-			c.JSON(http.StatusNotImplemented, gin.H{
-				"error": "This endpoint is disabled",
-			})
-		})
+		var h api.ServerInterface = struct {
+			*SciCatNotImplHandler
+			*S3Handler
+		}{
+			scicat.NewNoImplHandler(),
+			s3Handler,
+		}
+		api.RegisterHandlers(router, h)
 	}
 
 	if err := router.Run(); err != nil {
