@@ -52,11 +52,6 @@ func NewHandler(cfg *config.Config) *Handler {
 
 const iso8601Layout = "20060102T150405Z"
 
-var (
-	ErrDatasetNotAccessible = fmt.Errorf("Dataset not accessible")
-	ErrNoUrlsAvailable      = fmt.Errorf("No URLs available. Submit a URL retrive job in SciCat")
-)
-
 func (h *Handler) logIn() (SciCatLoginResponse, error) {
 	var loginResp SciCatLoginResponse
 
@@ -168,7 +163,7 @@ func makeJobsFilter(pid string) ([]byte, error) {
 func (h *Handler) getDatasetsUrlsObj(c context.Context, dataset string) (api.DatasetsUrlResponse, error) {
 
 	if !h.isPublic(dataset) {
-		return nil, ErrDatasetNotAccessible
+		return nil, DatasetNotAccessibleError{dataset}
 	}
 
 	accessToken, err := h.getToken()
@@ -214,7 +209,7 @@ func (h *Handler) getDatasetsUrlsObj(c context.Context, dataset string) (api.Dat
 	}
 
 	if len(jobResp) == 0 {
-		return nil, ErrNoUrlsAvailable
+		return nil, NoUrlsAvailableError{dataset}
 	}
 
 	datasetsUrlResp, err := toDatasetsUrlResponse(dataset, jobResp[0])
@@ -225,16 +220,18 @@ func (h *Handler) getDatasetsUrlsObj(c context.Context, dataset string) (api.Dat
 }
 
 func (h *Handler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
-	datasetsUrlResp, err := h.getDatasetsUrlsObj(c, id.Pid)
+	datasetsUrlResp, err := h.getDatasetsUrlsObj(c.Request.Context(), id.Pid)
 
 	if err != nil {
+		var datasetErr DatasetNotAccessibleError
+		var noUrlsErr NoUrlsAvailableError
 		switch {
-		case errors.Is(err, ErrDatasetNotAccessible):
+		case errors.As(err, &datasetErr):
 			log.Println(err)
-			c.JSON(http.StatusForbidden, gin.H{"error": "Dataset not accessible"})
-		case errors.Is(err, ErrNoUrlsAvailable):
+			c.JSON(http.StatusForbidden, gin.H{"error": datasetErr.Error()})
+		case errors.As(err, &noUrlsErr):
 			log.Println(err)
-			c.JSON(http.StatusNotFound, gin.H{"error": "No URLs available. Submit a URL retrive job in SciCat"})
+			c.JSON(http.StatusNotFound, gin.H{"error": noUrlsErr.Error()})
 		default:
 			log.Println(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
