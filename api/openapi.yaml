@@ -38,6 +38,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /publisheddata/urls:
+    get:
+      summary: Get download URLs for a published data
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The id or doi of the published data
+      responses:
+        "200":
+          description: A mapping of dataset PIDs to their URLs and expiration times
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishedDataUrlsResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: One or more datasets not public or accessible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /datasets/s3-creds:
     get:
       summary: Get temporary S3 credentials for a dataset
@@ -75,7 +110,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
 components:
   schemas:
     DatasetsUrlResponse:
@@ -95,6 +129,10 @@ components:
         required:
         - url
         - expires
+    PublishedDataUrlsResponse:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/DatasetsUrlResponse"
     S3CredentialsResponse:
       type: object
       properties:
