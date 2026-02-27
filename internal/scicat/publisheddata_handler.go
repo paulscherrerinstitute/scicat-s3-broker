@@ -31,7 +31,7 @@ func makePublishedDataQuery(doi string) ([]byte, error) {
 }
 
 func (h *Handler) GetPublisheddataUrls(c *gin.Context, params api.GetPublisheddataUrlsParams) {
-	result, err := h.getPublishedDataUrls(c.Request.Context(), params.Id)
+	result, err := h.service.getPublishedDataUrls(c.Request.Context(), params.Id)
 	if err != nil {
 		log.Println(err)
 		var datasetNotAccErr DatasetNotAccessibleError
@@ -52,9 +52,9 @@ func (h *Handler) GetPublisheddataUrls(c *gin.Context, params api.GetPublishedda
 	c.JSON(http.StatusOK, result)
 }
 
-func (h *Handler) getPublishedDataUrls(ctx context.Context, doi string) (api.PublishedDataUrlsResponse, error) {
+func (s *ServiceImpl) getPublishedDataUrls(ctx context.Context, doi string) (api.PublishedDataUrlsResponse, error) {
 	filterQuery, _ := makePublishedDataQuery(doi)
-	u, err := url.Parse(fmt.Sprintf("%s/api/v4/publisheddata", h.config.SciCatURL))
+	u, err := url.Parse(fmt.Sprintf("%s/api/v4/publisheddata", s.config.SciCatURL))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse publisheddata URL: %w", err)
 	}
@@ -80,7 +80,7 @@ func (h *Handler) getPublishedDataUrls(ctx context.Context, doi string) (api.Pub
 	}
 	result := make(api.PublishedDataUrlsResponse)
 	for _, pid := range publishedDataResp[0].DatasetPids {
-		urls, err := h.getDatasetsUrlsObj(ctx, pid)
+		urls, err := s.getDatasetsUrlsObj(ctx, pid)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get URLs for dataset %s: %w", pid, err)
 		}

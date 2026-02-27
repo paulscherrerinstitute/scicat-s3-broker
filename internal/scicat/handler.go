@@ -38,32 +38,41 @@ type SciCatLoginResponse struct {
 	CreatedAt   string `json:"created"`
 }
 
-type Handler struct {
+type Service interface {
+	getPublishedDataUrls(ctx context.Context, doi string) (api.PublishedDataUrlsResponse, error)
+	getDatasetsUrlsObj(c context.Context, dataset string) (api.DatasetsUrlResponse, error)
+}
+
+type ServiceImpl struct {
 	config     *config.Config
 	tokenMutex sync.RWMutex
 	token      SciCatLoginResponse
 }
 
+type Handler struct {
+	service Service
+}
+
 func NewHandler(cfg *config.Config) *Handler {
 	return &Handler{
-		config: cfg,
+		service: &ServiceImpl{config: cfg},
 	}
 }
 
 const iso8601Layout = "20060102T150405Z"
 
-func (h *Handler) logIn() (SciCatLoginResponse, error) {
+func (s *ServiceImpl) logIn() (SciCatLoginResponse, error) {
 	var loginResp SciCatLoginResponse
 
 	creds, err := json.Marshal(gin.H{
-		"username": h.config.JobManagerUsername,
-		"password": h.config.JobManagerPassword,
+		"username": s.config.JobManagerUsername,
+		"password": s.config.JobManagerPassword,
 	})
 	if err != nil {
 		return loginResp, fmt.Errorf("failed to marshal credentials: %w", err)
 	}
 
-	resp, err := http.Post(fmt.Sprintf("%s/api/v3/auth/login", h.config.SciCatURL), "application/json", bytes.NewReader(creds))
+	resp, err := http.Post(fmt.Sprintf("%s/api/v3/auth/login", s.config.SciCatURL), "application/json", bytes.NewReader(creds))
 	if err != nil {
 		return loginResp, fmt.Errorf("POST /login failed: %w", err)
 	}
@@ -80,31 +89,31 @@ func (h *Handler) logIn() (SciCatLoginResponse, error) {
 	return loginResp, nil
 }
 
-func (h *Handler) isTokenExpired() bool {
-	h.tokenMutex.RLock()
-	defer h.tokenMutex.RUnlock()
+func (s *ServiceImpl) isTokenExpired() bool {
+	s.tokenMutex.RLock()
+	defer s.tokenMutex.RUnlock()
 
-	if h.token.AccessToken == "" {
+	if s.token.AccessToken == "" {
 		return true
 	}
-	createdAt, err := time.Parse(time.RFC3339, h.token.CreatedAt)
+	createdAt, err := time.Parse(time.RFC3339, s.token.CreatedAt)
 	if err != nil {
 		log.Printf("failed to parse token creation time: %v", err)
 		return true
 	}
-	expirationTime := createdAt.Add(time.Second * time.Duration(h.token.ExpiresIn))
+	expirationTime := createdAt.Add(time.Second * time.Duration(s.token.ExpiresIn))
 
 	// Refreshes 10 mins before actual expiration
 	return time.Now().Add(10 * time.Minute).After(expirationTime)
 }
 
-func (h *Handler) isPublic(datasetPid string) bool {
+func (s *ServiceImpl) isPublic(datasetPid string) bool {
 	filterQuery, err := json.Marshal(gin.H{"fields": []string{"_id"}})
 	if err != nil {
 		return false
 	}
 
-	u, err := url.Parse(fmt.Sprintf("%s/api/v3/datasets/%s", h.config.SciCatURL, url.PathEscape(datasetPid)))
+	u, err := url.Parse(fmt.Sprintf("%s/api/v3/datasets/%s", s.config.SciCatURL, url.PathEscape(datasetPid)))
 	if err != nil {
 		log.Printf("failed to parse dataset URL: %v", err)
 		return false
@@ -123,21 +132,21 @@ func (h *Handler) isPublic(datasetPid string) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-func (h *Handler) getToken() (string, error) {
-	if h.isTokenExpired() {
+func (s *ServiceImpl) getToken() (string, error) {
+	if s.isTokenExpired() {
 		log.Println("refreshing expired token")
-		loginResp, err := h.logIn()
+		loginResp, err := s.logIn()
 		if err != nil {
 			return "", err
 		}
-		h.tokenMutex.Lock()
-		h.token = loginResp
-		h.tokenMutex.Unlock()
+		s.tokenMutex.Lock()
+		s.token = loginResp
+		s.tokenMutex.Unlock()
 	}
 
-	h.tokenMutex.RLock()
-	defer h.tokenMutex.RUnlock()
-	return h.token.AccessToken, nil
+	s.tokenMutex.RLock()
+	defer s.tokenMutex.RUnlock()
+	return s.token.AccessToken, nil
 }
 
 func makeJobsFilter(pid string) ([]byte, error) {
@@ -160,13 +169,13 @@ func makeJobsFilter(pid string) ([]byte, error) {
 
 }
 
-func (h *Handler) getDatasetsUrlsObj(c context.Context, dataset string) (api.DatasetsUrlResponse, error) {
+func (s *ServiceImpl) getDatasetsUrlsObj(c context.Context, dataset string) (api.DatasetsUrlResponse, error) {
 
-	if !h.isPublic(dataset) {
+	if !s.isPublic(dataset) {
 		return nil, DatasetNotAccessibleError{dataset}
 	}
 
-	accessToken, err := h.getToken()
+	accessToken, err := s.getToken()
 	if err != nil {
 		return nil, fmt.Errorf("Error in getToken: %v", err)
 	}
@@ -177,7 +186,7 @@ func (h *Handler) getDatasetsUrlsObj(c context.Context, dataset string) (api.Dat
 		return nil, fmt.Errorf("Error creating filter: %v", err)
 	}
 
-	u, err := url.Parse(fmt.Sprintf("%s/api/v4/jobs", h.config.SciCatURL))
+	u, err := url.Parse(fmt.Sprintf("%s/api/v4/jobs", s.config.SciCatURL))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse URL: %v", err)
 	}
@@ -220,7 +229,7 @@ func (h *Handler) getDatasetsUrlsObj(c context.Context, dataset string) (api.Dat
 }
 
 func (h *Handler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
-	datasetsUrlResp, err := h.getDatasetsUrlsObj(c.Request.Context(), id.Pid)
+	datasetsUrlResp, err := h.service.getDatasetsUrlsObj(c.Request.Context(), id.Pid)
 
 	if err != nil {
 		var datasetErr DatasetNotAccessibleError
