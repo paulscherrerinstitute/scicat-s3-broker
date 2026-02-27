@@ -2,6 +2,7 @@ package scicat
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,6 +51,11 @@ func NewHandler(cfg *config.Config) *Handler {
 }
 
 const iso8601Layout = "20060102T150405Z"
+
+var (
+	ErrDatasetNotAccessible = fmt.Errorf("Dataset not accessible")
+	ErrNoUrlsAvailable      = fmt.Errorf("No URLs available. Submit a URL retrive job in SciCat")
+)
 
 func (h *Handler) logIn() (SciCatLoginResponse, error) {
 	var loginResp SciCatLoginResponse
@@ -159,34 +165,26 @@ func makeJobsFilter(pid string) ([]byte, error) {
 
 }
 
-func (h *Handler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
-	dataset := id.Pid
+func (h *Handler) getDatasetsUrlsObj(c context.Context, dataset string) (api.DatasetsUrlResponse, error) {
 
 	if !h.isPublic(dataset) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Dataset not accessible"})
-		return
+		return nil, ErrDatasetNotAccessible
 	}
 
 	accessToken, err := h.getToken()
 	if err != nil {
-		log.Printf("Error in getToken: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
+		return nil, fmt.Errorf("Error in getToken: %v", err)
 	}
 	authHeader := fmt.Sprintf("Bearer %s", accessToken)
 
 	filterQuery, err := makeJobsFilter(dataset)
 	if err != nil {
-		log.Printf("Error creating filter: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
+		return nil, fmt.Errorf("Error creating filter: %v", err)
 	}
 
 	u, err := url.Parse(fmt.Sprintf("%s/api/v4/jobs", h.config.SciCatURL))
 	if err != nil {
-		log.Printf("Failed to parse URL: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
+		return nil, fmt.Errorf("Failed to parse URL: %v", err)
 	}
 	q := u.Query()
 	q.Set("filter", string(filterQuery))
@@ -194,44 +192,53 @@ func (h *Handler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) 
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
-		log.Printf("Failed to create request: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
+		return nil, fmt.Errorf("Failed to create request: %v", err)
 	}
-	req = req.WithContext(c.Request.Context())
+	req = req.WithContext(c)
 	req.Header.Set("Authorization", authHeader)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("Failed to execute request: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
+		return nil, fmt.Errorf("Failed to execute request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Invalid response code from /jobs: %v", resp.StatusCode)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
+		return nil, fmt.Errorf("Invalid response code from /jobs: %v", resp.StatusCode)
 	}
 
 	var jobResp []JobsResponse
 	err = json.NewDecoder(resp.Body).Decode(&jobResp)
 	if err != nil {
-		log.Printf("failed to unmarshal jobs response: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		return
+		return nil, fmt.Errorf("failed to unmarshal jobs response: %v", err)
 	}
 
 	if len(jobResp) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "No URLs available. Submit a URL retrive job in SciCat"})
-		return
+		return nil, ErrNoUrlsAvailable
 	}
 
 	datasetsUrlResp, err := toDatasetsUrlResponse(dataset, jobResp[0])
 	if err != nil {
-		log.Printf("failed to convert to URL response: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return nil, fmt.Errorf("failed to convert to URL response: %v", err)
+	}
+	return datasetsUrlResp, err
+}
+
+func (h *Handler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
+	datasetsUrlResp, err := h.getDatasetsUrlsObj(c, id.Pid)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrDatasetNotAccessible):
+			log.Println(err)
+			c.JSON(http.StatusForbidden, gin.H{"error": "Dataset not accessible"})
+		case errors.Is(err, ErrNoUrlsAvailable):
+			log.Println(err)
+			c.JSON(http.StatusNotFound, gin.H{"error": "No URLs available. Submit a URL retrive job in SciCat"})
+		default:
+			log.Println(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		}
 		return
 	}
 	c.PureJSON(http.StatusOK, datasetsUrlResp)

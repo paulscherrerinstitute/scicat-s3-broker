@@ -164,7 +164,7 @@ func TestGetDatasetsUrls(t *testing.T) {
 			name:           "Dataset Not Public or Not Found",
 			datasetPid:     "private-pid-or-no-such-pid",
 			mockPublicCode: http.StatusNotFound,
-			wantStatusCode: http.StatusUnauthorized,
+			wantStatusCode: http.StatusForbidden,
 		},
 		{
 			name:           "Login Failed",
