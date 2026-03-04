@@ -11,7 +11,7 @@ import (
 )
 
 func TestGetPublisheddataUrls(t *testing.T) {
-	h := &Handler{service: &MockService{}}
+	h := &PublisheddataHandler{service: &MockService{}}
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -23,16 +23,11 @@ func TestGetPublisheddataUrls(t *testing.T) {
 	}
 }
 
-type MockService struct {
-}
+type MockService struct{}
 
-func (m *MockService) getPublishedDataUrls(ctx context.Context, doi string) (api.PublishedDataUrlsResponse, error) {
+func (m *MockService) GetUrls(ctx context.Context, doi string) (api.PublishedDataUrlsResponse, error) {
 	if doi == "no-such-doi" {
 		return nil, &DatasetNotAccessibleError{doi}
 	}
 	return api.PublishedDataUrlsResponse{}, nil
-}
-
-func (m *MockService) getDatasetsUrlsObj(c context.Context, dataset string) (api.DatasetsUrlResponse, error) {
-	return api.DatasetsUrlResponse{}, nil
 }

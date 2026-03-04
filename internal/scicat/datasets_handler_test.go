@@ -232,7 +232,7 @@ func TestGetDatasetsUrls(t *testing.T) {
 			}))
 			defer scicatServer.Close()
 
-			h := NewHandler(getTestConfig(scicatServer.URL))
+			h := NewDatasetsHandler(getTestConfig(scicatServer.URL))
 
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
