@@ -44,6 +44,9 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (api
 		return nil, fmt.Errorf("failed to fetch publisheddata: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get publisheddata: %v", resp.Status)
+	}
 	var publishedDataResp []SciCatPublishedDataItem
 	if err := json.NewDecoder(resp.Body).Decode(&publishedDataResp); err != nil {
 		return nil, fmt.Errorf("failed to decode publisheddata response: %w", err)

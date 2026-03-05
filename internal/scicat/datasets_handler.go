@@ -7,17 +7,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
-	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 )
 
 type DatasetsHandler struct {
 	service DatasetsService
-}
-
-func NewDatasetsHandler(cfg *config.Config) *DatasetsHandler {
-	return &DatasetsHandler{
-		service: &DatasetsServiceImpl{config: cfg},
-	}
 }
 
 func (h *DatasetsHandler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
