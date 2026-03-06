@@ -31,6 +31,9 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
+// PublishedDataUrlsResponse defines model for PublishedDataUrlsResponse.
+type PublishedDataUrlsResponse map[string]DatasetsUrlResponse
+
 // S3CredentialsResponse defines model for S3CredentialsResponse.
 type S3CredentialsResponse struct {
 	// AccessKey The temporary AWS access key ID
@@ -58,6 +61,12 @@ type GetDatasetsUrlsParams struct {
 	Pid string `form:"pid" json:"pid"`
 }
 
+// GetPublisheddataUrlsParams defines parameters for GetPublisheddataUrls.
+type GetPublisheddataUrlsParams struct {
+	// Id The id or doi of the published data
+	Id string `form:"id" json:"id"`
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Get temporary S3 credentials for a dataset
@@ -66,6 +75,9 @@ type ServerInterface interface {
 	// Get download URLs for a dataset
 	// (GET /datasets/urls)
 	GetDatasetsUrls(c *gin.Context, params GetDatasetsUrlsParams)
+	// Get download URLs for a published data
+	// (GET /publisheddata/urls)
+	GetPublisheddataUrls(c *gin.Context, params GetPublisheddataUrlsParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -145,6 +157,39 @@ func (siw *ServerInterfaceWrapper) GetDatasetsUrls(c *gin.Context) {
 	siw.Handler.GetDatasetsUrls(c, params)
 }
 
+// GetPublisheddataUrls operation middleware
+func (siw *ServerInterfaceWrapper) GetPublisheddataUrls(c *gin.Context) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetPublisheddataUrlsParams
+
+	// ------------- Required query parameter "id" -------------
+
+	if paramValue := c.Query("id"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument id is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "id", c.Request.URL.Query(), &params.Id)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPublisheddataUrls(c, params)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -174,4 +219,5 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/datasets/s3-creds", wrapper.GetDatasetsS3Creds)
 	router.GET(options.BaseURL+"/datasets/urls", wrapper.GetDatasetsUrls)
+	router.GET(options.BaseURL+"/publisheddata/urls", wrapper.GetPublisheddataUrls)
 }

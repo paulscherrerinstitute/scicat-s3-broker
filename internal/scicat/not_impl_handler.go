@@ -17,3 +17,9 @@ func (*NotImplHandler) GetDatasetsUrls(c *gin.Context, _ api.GetDatasetsUrlsPara
 		"error": "This endpoint is disabled",
 	})
 }
+
+func (*NotImplHandler) GetPublisheddataUrls(c *gin.Context, _ api.GetPublisheddataUrlsParams) {
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error": "This endpoint is disabled",
+	})
+}
