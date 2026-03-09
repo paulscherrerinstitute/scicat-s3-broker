@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
+	"golang.org/x/sync/errgroup"
 )
 
 type PublisheddataService interface {
@@ -54,13 +55,28 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (api
 	if len(publishedDataResp) == 0 {
 		return nil, PublishedDataNotFoundError{Id: doi}
 	}
+	type concurrentResult struct {
+		pid            string
+		datasetUrlResp api.DatasetsUrlResponse
+	}
+	resultSlice := make([]concurrentResult, len(publishedDataResp[0].DatasetPids))
+	g, ctx := errgroup.WithContext(ctx)
+	for i, pid := range publishedDataResp[0].DatasetPids {
+		g.Go(func() error {
+			urls, err := s.datasetsService.GetUrls(ctx, pid)
+			if err == nil {
+				resultSlice[i] = concurrentResult{pid, urls}
+				return nil
+			}
+			return fmt.Errorf("failed to get URLs for dataset %s: %w", pid, err)
+		})
+	}
+	if err = g.Wait(); err != nil {
+		return nil, fmt.Errorf("error from a goroutine executing datasetsService.GetUrls: %w", err)
+	}
 	result := make(api.PublishedDataUrlsResponse)
-	for _, pid := range publishedDataResp[0].DatasetPids {
-		urls, err := s.datasetsService.GetUrls(ctx, pid)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get URLs for dataset %s: %w", pid, err)
-		}
-		result[pid] = urls
+	for _, r := range resultSlice {
+		result[r.pid] = r.datasetUrlResp
 	}
 	return result, nil
 }

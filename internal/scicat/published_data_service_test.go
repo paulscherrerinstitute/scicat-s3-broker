@@ -14,24 +14,27 @@ import (
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 )
 
-type mockDatasetsServiceImpl struct {
-	err error
-	val map[string]api.DatasetsUrlResponse
-}
+type mockDatasetsServiceImpl struct{}
+
+var errMockDatasetsInternal = errors.New("internal error")
 
 func (m *mockDatasetsServiceImpl) GetUrls(c context.Context, dataset string) (api.DatasetsUrlResponse, error) {
-	if m.err != nil {
-		return nil, m.err
+	switch dataset {
+	case "pid1":
+		return api.DatasetsUrlResponse{{Url: "http://example.com/pid1"}}, nil
+	case "pid2":
+		return api.DatasetsUrlResponse{{Url: "http://example.com/pid2"}}, nil
+	case "pid-no-urls":
+		return nil, NoUrlsAvailableError{Pid: dataset}
+	default:
+		return nil, errMockDatasetsInternal
 	}
-	return m.val[dataset], nil
 }
 
 func TestPublisheddataServiceGetUrls(t *testing.T) {
 	tests := []struct {
 		name           string
 		serverResponse func(w http.ResponseWriter, r *http.Request)
-		mockVal        map[string]api.DatasetsUrlResponse
-		mockErr        error
 		wantErr        bool
 		wantErrIs      error
 		wantResult     api.PublishedDataUrlsResponse
@@ -44,10 +47,6 @@ func TestPublisheddataServiceGetUrls(t *testing.T) {
 					{DatasetPids: []string{"pid1", "pid2"}},
 				})
 			},
-			mockVal: map[string]api.DatasetsUrlResponse{
-				"pid1": {{Url: "http://example.com/pid1"}},
-				"pid2": {{Url: "http://example.com/pid2"}},
-			},
 			wantErr: false,
 			wantResult: map[string]api.DatasetsUrlResponse{
 				"pid1": {{Url: "http://example.com/pid1"}},
@@ -55,7 +54,7 @@ func TestPublisheddataServiceGetUrls(t *testing.T) {
 			},
 		},
 		{
-			name: "404 Not Found",
+			name: "Non OK status code from scicat gets publisheddata",
 			serverResponse: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotFound)
 			},
@@ -84,12 +83,22 @@ func TestPublisheddataServiceGetUrls(t *testing.T) {
 			serverResponse: func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode([]SciCatPublishedDataItem{
-					{DatasetPids: []string{"pid1"}},
+					{DatasetPids: []string{"pid-no-urls"}},
 				})
 			},
-			mockErr:   NoUrlsAvailableError{"pid1"},
 			wantErr:   true,
-			wantErrIs: NoUrlsAvailableError{"pid1"},
+			wantErrIs: NoUrlsAvailableError{"pid-no-urls"},
+		},
+		{
+			name: "Mix of success and error responses from datasets service",
+			serverResponse: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode([]SciCatPublishedDataItem{
+					{DatasetPids: []string{"error-pid", "pid1"}},
+				})
+			},
+			wantErr:   true,
+			wantErrIs: errMockDatasetsInternal,
 		},
 	}
 
@@ -99,11 +108,8 @@ func TestPublisheddataServiceGetUrls(t *testing.T) {
 			defer server.Close()
 
 			svc := PublisheddataServiceImpl{
-				config: &config.Config{SciCatURL: server.URL},
-				datasetsService: &mockDatasetsServiceImpl{
-					err: tt.mockErr,
-					val: tt.mockVal,
-				},
+				config:          &config.Config{SciCatURL: server.URL},
+				datasetsService: &mockDatasetsServiceImpl{},
 			}
 
 			result, err := svc.GetUrls(context.Background(), "test-doi")
