@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 )
@@ -55,9 +56,16 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 		{
 			name:           "Dataset Not Public",
 			datasetPid:     "private-pid",
-			mockPublicCode: http.StatusNotFound,
+			mockPublicCode: http.StatusForbidden,
 			wantErr:        true,
 			wantErrIs:      DatasetNotAccessibleError{"private-pid"},
+		},
+		{
+			name:           "Dataset Not Found",
+			datasetPid:     "no-such-pid",
+			mockPublicCode: http.StatusNotFound,
+			wantErr:        true,
+			wantErrIs:      DatasetNotFoundError{"no-such-pid"},
 		},
 		{
 			name:           "Login Failed",
@@ -81,8 +89,8 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 			mockLoginCode:  http.StatusCreated,
 			mockJobsCode:   http.StatusOK,
 			mockJobsBody:   `[]`,
-			wantErr:        true,
-			wantErrIs:      NoUrlsAvailableError{"valid-pid"},
+			wantErr:        false,
+			wantResult:     api.DatasetsUrlResponse{},
 		},
 	}
 
@@ -138,8 +146,13 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 				}
 			}
 
-			if !tt.wantErr && result.Urls[0].Url != tt.wantResult.Urls[0].Url {
-				t.Errorf("GetUrls() mismatch\ngot:  %+v\nwant: %+v", result, tt.wantResult)
+			if !tt.wantErr {
+				expectedNoJobsResp := api.DatasetsUrlResponse{Expires: unixEpoch, Urls: []api.UrlInfo{}}
+				if len(result.Urls) > 0 && result.Urls[0].Url != tt.wantResult.Urls[0].Url {
+					t.Errorf("GetUrls() mismatch\ngot:  %+v\nwant: %+v", result, tt.wantResult)
+				} else if tt.name == "No Jobs Found" && !cmp.Equal(*result, expectedNoJobsResp) {
+					t.Errorf("GetUrls() mismatch:\ndiff %v", cmp.Diff(*result, expectedNoJobsResp))
+				}
 			}
 		})
 	}
@@ -158,7 +171,7 @@ func TestToDatasetsUrlResponse(t *testing.T) {
 		expectedCount int
 	}{
 		{
-			name: "Valid Single Result",
+			name: "Valid Result",
 			pid:  "pid-123",
 			inputJSON: fmt.Sprintf(`{
 				"jobResultObject": {

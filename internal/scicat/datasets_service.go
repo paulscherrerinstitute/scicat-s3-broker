@@ -43,10 +43,12 @@ type SciCatLoginResponse struct {
 	CreatedAt   string `json:"created"`
 }
 
+var unixEpoch = time.Unix(0, 0).UTC()
+
 func (s *DatasetsServiceImpl) GetUrls(c context.Context, dataset string) (*api.DatasetsUrlResponse, error) {
 
-	if !s.isPublic(dataset) {
-		return nil, DatasetNotAccessibleError{dataset}
+	if err := s.isPublicAndExists(dataset); err != nil {
+		return nil, err
 	}
 
 	accessToken, err := s.getToken()
@@ -92,7 +94,7 @@ func (s *DatasetsServiceImpl) GetUrls(c context.Context, dataset string) (*api.D
 	}
 
 	if len(jobResp) == 0 {
-		return nil, NoUrlsAvailableError{dataset}
+		return &api.DatasetsUrlResponse{Expires: unixEpoch, Urls: []api.UrlInfo{}}, nil
 	}
 
 	datasetsUrlResp, err := toDatasetsUrlResponse(dataset, jobResp[0])
@@ -195,16 +197,15 @@ func (s *DatasetsServiceImpl) isTokenExpired() bool {
 	return time.Now().Add(10 * time.Minute).After(expirationTime)
 }
 
-func (s *DatasetsServiceImpl) isPublic(datasetPid string) bool {
+func (s *DatasetsServiceImpl) isPublicAndExists(datasetPid string) error {
 	filterQuery, err := json.Marshal(gin.H{"fields": []string{"_id"}})
 	if err != nil {
-		return false
+		return fmt.Errorf("failed to marshal request to /datasets: %w", err)
 	}
 
 	u, err := url.Parse(fmt.Sprintf("%s/api/v3/datasets/%s", s.config.SciCatURL, url.PathEscape(datasetPid)))
 	if err != nil {
-		log.Printf("failed to parse dataset URL: %v", err)
-		return false
+		return fmt.Errorf("failed to parse dataset URL: %w", err)
 	}
 	q := u.Query()
 	q.Set("filter", string(filterQuery))
@@ -212,12 +213,20 @@ func (s *DatasetsServiceImpl) isPublic(datasetPid string) bool {
 
 	resp, err := http.Get(u.String())
 	if err != nil {
-		log.Printf("failed to check dataset public status: %v", err)
-		return false
+		return fmt.Errorf("failed to check dataset public status: %w", err)
 	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode == http.StatusOK
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return nil
+	case http.StatusNotFound:
+		return DatasetNotFoundError{datasetPid}
+	case http.StatusForbidden:
+		return DatasetNotAccessibleError{datasetPid}
+	default:
+		return fmt.Errorf("Unexpected status code from /datsets: %v", resp.StatusCode)
+	}
 }
 
 func (s *DatasetsServiceImpl) getToken() (string, error) {

@@ -28,7 +28,7 @@ func (m *mockDatasetsServiceImpl) GetUrls(c context.Context, dataset string) (*a
 	case "pid2":
 		return &api.DatasetsUrlResponse{Expires: timeB, Urls: []api.UrlInfo{{Url: "http://example.com/pid2"}}}, nil
 	case "pid-no-urls":
-		return nil, NoUrlsAvailableError{Pid: dataset}
+		return nil, DatasetNotFoundError{Pid: dataset}
 	default:
 		return nil, errMockDatasetsInternal
 	}
@@ -93,7 +93,7 @@ func TestPublisheddataServiceGetUrls(t *testing.T) {
 				})
 			},
 			wantErr:   true,
-			wantErrIs: NoUrlsAvailableError{"pid-no-urls"},
+			wantErrIs: DatasetNotFoundError{"pid-no-urls"},
 		},
 		{
 			name: "Mix of success and error responses from datasets service",

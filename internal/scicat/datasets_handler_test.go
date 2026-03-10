@@ -16,11 +16,9 @@ type mockService struct{}
 func (m *mockService) GetUrls(c context.Context, dataset string) (*api.DatasetsUrlResponse, error) {
 	switch dataset {
 	case "not-found":
-		return nil, DatasetNotAccessibleError{dataset}
+		return nil, DatasetNotFoundError{dataset}
 	case "forbidden":
 		return nil, DatasetNotAccessibleError{dataset}
-	case "no-urls":
-		return nil, NoUrlsAvailableError{dataset}
 	case "internal-error":
 		return nil, fmt.Errorf("internal error")
 	default:
@@ -49,17 +47,12 @@ func TestDatasetsHandler_GetDatasetsUrls(t *testing.T) {
 		{
 			name:       "Dataset Not Accessible",
 			pid:        "not-found",
-			wantStatus: http.StatusForbidden,
+			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "Dataset Not Accessible (forbidden)",
 			pid:        "forbidden",
 			wantStatus: http.StatusForbidden,
-		},
-		{
-			name:       "No URLs Available",
-			pid:        "no-urls",
-			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "Internal Server Error",

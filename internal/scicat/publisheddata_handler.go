@@ -18,7 +18,7 @@ func (h *PublisheddataHandler) GetPublisheddataUrls(c *gin.Context, params api.G
 	if err != nil {
 		log.Println(err)
 		var datasetNotAccErr DatasetNotAccessibleError
-		var noUrlsErr NoUrlsAvailableError
+		var noUrlsErr DatasetNotFoundError
 		var pubDataErr PublishedDataNotFoundError
 		switch {
 		case errors.As(err, &pubDataErr):
