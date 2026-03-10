@@ -18,12 +18,12 @@ type mockDatasetsServiceImpl struct{}
 
 var errMockDatasetsInternal = errors.New("internal error")
 
-func (m *mockDatasetsServiceImpl) GetUrls(c context.Context, dataset string) (api.DatasetsUrlResponse, error) {
+func (m *mockDatasetsServiceImpl) GetUrls(c context.Context, dataset string) (*api.DatasetsUrlResponse, error) {
 	switch dataset {
 	case "pid1":
-		return api.DatasetsUrlResponse{{Url: "http://example.com/pid1"}}, nil
+		return &api.DatasetsUrlResponse{Urls: []api.UrlInfo{{Url: "http://example.com/pid1"}}}, nil
 	case "pid2":
-		return api.DatasetsUrlResponse{{Url: "http://example.com/pid2"}}, nil
+		return &api.DatasetsUrlResponse{Urls: []api.UrlInfo{{Url: "http://example.com/pid2"}}}, nil
 	case "pid-no-urls":
 		return nil, NoUrlsAvailableError{Pid: dataset}
 	default:
@@ -48,9 +48,11 @@ func TestPublisheddataServiceGetUrls(t *testing.T) {
 				})
 			},
 			wantErr: false,
-			wantResult: map[string]api.DatasetsUrlResponse{
-				"pid1": {{Url: "http://example.com/pid1"}},
-				"pid2": {{Url: "http://example.com/pid2"}},
+			wantResult: api.PublishedDataUrlsResponse{
+				Urls: map[string]api.DatasetsUrlResponse{
+					"pid1": {Urls: []api.UrlInfo{{Url: "http://example.com/pid1"}}},
+					"pid2": {Urls: []api.UrlInfo{{Url: "http://example.com/pid2"}}},
+				},
 			},
 		},
 		{
@@ -127,7 +129,7 @@ func TestPublisheddataServiceGetUrls(t *testing.T) {
 				}
 			}
 
-			if !tt.wantErr && !cmp.Equal(result, tt.wantResult) {
+			if !tt.wantErr && !cmp.Equal(*result, tt.wantResult) {
 				t.Errorf("GetUrls() mismatch\ngot:  %+v\nwant: %+v", result, tt.wantResult)
 			}
 		})

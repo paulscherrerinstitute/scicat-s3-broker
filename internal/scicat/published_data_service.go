@@ -14,7 +14,7 @@ import (
 )
 
 type PublisheddataService interface {
-	GetUrls(ctx context.Context, doi string) (api.PublishedDataUrlsResponse, error)
+	GetUrls(ctx context.Context, doi string) (*api.PublishedDataUrlsResponse, error)
 }
 
 type PublisheddataServiceImpl struct {
@@ -26,7 +26,7 @@ type SciCatPublishedDataItem struct {
 	DatasetPids []string `json:"datasetPids"`
 }
 
-func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (api.PublishedDataUrlsResponse, error) {
+func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (*api.PublishedDataUrlsResponse, error) {
 	filterQuery, _ := makePublishedDataQuery(doi)
 	u, err := url.Parse(fmt.Sprintf("%s/api/v4/publisheddata", s.config.SciCatURL))
 	if err != nil {
@@ -65,7 +65,7 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (api
 		g.Go(func() error {
 			urls, err := s.datasetsService.GetUrls(ctx, pid)
 			if err == nil {
-				resultSlice[i] = concurrentResult{pid, urls}
+				resultSlice[i] = concurrentResult{pid, *urls}
 				return nil
 			}
 			return fmt.Errorf("failed to get URLs for dataset %s: %w", pid, err)
@@ -74,11 +74,11 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (api
 	if err = g.Wait(); err != nil {
 		return nil, fmt.Errorf("error from a goroutine executing datasetsService.GetUrls: %w", err)
 	}
-	result := make(api.PublishedDataUrlsResponse)
+	result := make(map[string]api.DatasetsUrlResponse)
 	for _, r := range resultSlice {
 		result[r.pid] = r.datasetUrlResp
 	}
-	return result, nil
+	return &api.PublishedDataUrlsResponse{Urls: result}, nil
 }
 
 func makePublishedDataQuery(doi string) ([]byte, error) {

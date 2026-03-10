@@ -17,12 +17,10 @@ const (
 )
 
 // DatasetsUrlResponse defines model for DatasetsUrlResponse.
-type DatasetsUrlResponse = []struct {
-	// Url The URL to access the dataset
-	Url string `json:"url"`
-
-	// Expires The expiration time of the URL in RFC 3339 format
+type DatasetsUrlResponse struct {
+	// Expires The earliest expiration of all urls for this dataset
 	Expires time.Time `json:"expires"`
+	Urls    []UrlInfo `json:"urls"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -32,7 +30,11 @@ type ErrorResponse struct {
 }
 
 // PublishedDataUrlsResponse defines model for PublishedDataUrlsResponse.
-type PublishedDataUrlsResponse map[string]DatasetsUrlResponse
+type PublishedDataUrlsResponse struct {
+	// Expires The earliest expiration of all datasets' urls
+	Expires time.Time                      `json:"expires"`
+	Urls    map[string]DatasetsUrlResponse `json:"urls"`
+}
 
 // S3CredentialsResponse defines model for S3CredentialsResponse.
 type S3CredentialsResponse struct {
@@ -47,6 +49,15 @@ type S3CredentialsResponse struct {
 
 	// SessionToken The temporary AWS session token
 	SessionToken string `json:"session_token"`
+}
+
+// UrlInfo defines model for UrlInfo.
+type UrlInfo struct {
+	// Expires The expiration time of the URL in RFC 3339 format
+	Expires time.Time `json:"expires"`
+
+	// Url The URL to access the dataset
+	Url string `json:"url"`
 }
 
 // GetDatasetsS3CredsParams defines parameters for GetDatasetsS3Creds.
