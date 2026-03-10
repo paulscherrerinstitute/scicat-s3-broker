@@ -27,7 +27,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: No URLs available for the dataset, trigger a URL retrieve job in SciCat
+          description: Dataset not found
           content:
             application/json:
               schema:
@@ -68,7 +68,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Either publisheddata with `id` not found. Or no URLs available for on or more datasets in the publisheddata
+          description: Either publisheddata with `id` not found. Or one or more datasets in the publisheddata not found
           content:
             application/json:
               schema:

@@ -18,9 +18,9 @@ func (m *mockPublisheddataSvc) GetUrls(ctx context.Context, doi string) (*api.Pu
 	case "not-found":
 		return nil, PublishedDataNotFoundError{Id: doi}
 	case "forbidden":
-		return nil, DatasetNotAccessibleError{doi}
-	case "no-urls":
-		return nil, NoUrlsAvailableError{doi}
+		return nil, DatasetNotAccessibleError{"test-pid"}
+	case "dataset-not-found":
+		return nil, DatasetNotFoundError{"test-pid"}
 	case "internal-error":
 		return nil, errors.New("internal error")
 	default:
@@ -51,8 +51,8 @@ func TestGetPublisheddataUrls(t *testing.T) {
 			wantStatus: http.StatusForbidden,
 		},
 		{
-			name:       "NoUrlsAvailableError",
-			doi:        "no-urls",
+			name:       "DatasetNotFoundError",
+			doi:        "dataset-not-found",
 			wantStatus: http.StatusNotFound,
 		},
 		{

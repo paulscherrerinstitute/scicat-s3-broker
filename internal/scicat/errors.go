@@ -6,15 +6,15 @@ type DatasetNotAccessibleError struct {
 	Pid string
 }
 
-type NoUrlsAvailableError struct {
+type DatasetNotFoundError struct {
 	Pid string
 }
 
 func (e DatasetNotAccessibleError) Error() string {
 	return fmt.Sprintf("Dataset %s not accessible", e.Pid)
 }
-func (e NoUrlsAvailableError) Error() string {
-	return fmt.Sprintf("No URLs available for %s. Trigger a URL retrieve job in SciCat", e.Pid)
+func (e DatasetNotFoundError) Error() string {
+	return fmt.Sprintf("Dataset with PID %s not found.", e.Pid)
 }
 
 type PublishedDataNotFoundError struct {
