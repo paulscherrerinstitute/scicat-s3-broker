@@ -132,6 +132,7 @@ func toDatasetsUrlResponse(pid string, resp JobsResponse) (*api.DatasetsUrlRespo
 	}
 
 	result := api.DatasetsUrlResponse{}
+	result.Expires = time.Time{} // use zero-time as sentinel for max
 	for _, x := range resp.JobResultObject.Result {
 		if x.DatasetId == pid {
 			expirationTime, err := parseExpirationTime(x.Url)
@@ -139,6 +140,7 @@ func toDatasetsUrlResponse(pid string, resp JobsResponse) (*api.DatasetsUrlRespo
 				return nil, err
 			}
 			result.Urls = append(result.Urls, api.UrlInfo{Expires: expirationTime, Url: x.Url})
+			result.Expires = minTime(result.Expires, expirationTime)
 		}
 	}
 

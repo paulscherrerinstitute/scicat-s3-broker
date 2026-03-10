@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
@@ -57,7 +58,7 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (*ap
 	}
 	type concurrentResult struct {
 		pid            string
-		datasetUrlResp api.DatasetsUrlResponse
+		datasetUrlResp *api.DatasetsUrlResponse
 	}
 	resultSlice := make([]concurrentResult, len(publishedDataResp[0].DatasetPids))
 	g, ctx := errgroup.WithContext(ctx)
@@ -65,7 +66,7 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (*ap
 		g.Go(func() error {
 			urls, err := s.datasetsService.GetUrls(ctx, pid)
 			if err == nil {
-				resultSlice[i] = concurrentResult{pid, *urls}
+				resultSlice[i] = concurrentResult{pid, urls}
 				return nil
 			}
 			return fmt.Errorf("failed to get URLs for dataset %s: %w", pid, err)
@@ -74,11 +75,14 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (*ap
 	if err = g.Wait(); err != nil {
 		return nil, fmt.Errorf("error from a goroutine executing datasetsService.GetUrls: %w", err)
 	}
-	result := make(map[string]api.DatasetsUrlResponse)
+	result := api.PublishedDataUrlsResponse{}
+	result.Expires = time.Time{}
+	result.Urls = make(map[string]api.DatasetsUrlResponse)
 	for _, r := range resultSlice {
-		result[r.pid] = r.datasetUrlResp
+		result.Urls[r.pid] = *r.datasetUrlResp
+		result.Expires = minTime(result.Expires, r.datasetUrlResp.Expires)
 	}
-	return &api.PublishedDataUrlsResponse{Urls: result}, nil
+	return &result, nil
 }
 
 func makePublishedDataQuery(doi string) ([]byte, error) {

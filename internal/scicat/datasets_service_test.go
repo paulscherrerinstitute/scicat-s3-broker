@@ -148,6 +148,7 @@ func TestToDatasetsUrlResponse(t *testing.T) {
 	now := time.Now().UTC()
 	validTimeIso8601Str := now.Format(iso8601Layout)
 	expiresSeconds := 604800
+	expiresLater := 691200
 
 	tests := []struct {
 		name          string
@@ -162,12 +163,13 @@ func TestToDatasetsUrlResponse(t *testing.T) {
 			inputJSON: fmt.Sprintf(`{
 				"jobResultObject": {
 					"result": [
+						{"datasetId": "pid-123", "url": "s3://bucket/file1?X-Amz-Date=%s&X-Amz-Expires=%v"},
 						{"datasetId": "pid-123", "url": "s3://bucket/file1?X-Amz-Date=%s&X-Amz-Expires=%v"}
 					]
 				}
-			}`, validTimeIso8601Str, expiresSeconds),
+			}`, validTimeIso8601Str, expiresSeconds, validTimeIso8601Str, expiresLater),
 			wantErr:       false,
-			expectedCount: 1,
+			expectedCount: 2,
 		},
 		{
 			name: "Filter Irrelevant PIDs",
@@ -239,6 +241,14 @@ func TestToDatasetsUrlResponse(t *testing.T) {
 				tolerance := 1 * time.Second
 				if diff < -tolerance || diff > tolerance {
 					t.Errorf("Expiration date mismatch.\nGot:  %v\nWant: %v\nDiff: %v", got.Urls[0].Expires, expectedExp, diff)
+				}
+
+				// verify that earlier expiration is present at the root
+				if tt.expectedCount == 2 {
+					expectedExp := minTime(got.Urls[0].Expires, got.Urls[1].Expires)
+					if !got.Expires.Equal(expectedExp) {
+						t.Errorf("Expected earliest expiration at the root of the response\nGot: %v\nWant: %v", got.Expires, expectedExp)
+					}
 				}
 			}
 		})
