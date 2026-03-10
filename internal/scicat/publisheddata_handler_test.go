@@ -13,7 +13,7 @@ import (
 
 type mockPublisheddataSvc struct{}
 
-func (m *mockPublisheddataSvc) GetUrls(ctx context.Context, doi string) (api.PublishedDataUrlsResponse, error) {
+func (m *mockPublisheddataSvc) GetUrls(ctx context.Context, doi string) (*api.PublishedDataUrlsResponse, error) {
 	switch doi {
 	case "not-found":
 		return nil, PublishedDataNotFoundError{Id: doi}
@@ -24,7 +24,8 @@ func (m *mockPublisheddataSvc) GetUrls(ctx context.Context, doi string) (api.Pub
 	case "internal-error":
 		return nil, errors.New("internal error")
 	default:
-		return api.PublishedDataUrlsResponse{"pid123": api.DatasetsUrlResponse{{Url: "http://example.com/publisheddata1"}}}, nil
+		return &api.PublishedDataUrlsResponse{Urls: map[string]api.DatasetsUrlResponse{
+			"pid123": {Urls: []api.UrlInfo{{Url: "http://example.com/publisheddata1"}}}}}, nil
 	}
 }
 

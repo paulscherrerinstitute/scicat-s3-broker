@@ -19,18 +19,13 @@ import (
 )
 
 type DatasetsService interface {
-	GetUrls(c context.Context, dataset string) (api.DatasetsUrlResponse, error)
+	GetUrls(c context.Context, dataset string) (*api.DatasetsUrlResponse, error)
 }
 
 type DatasetsServiceImpl struct {
 	config     *config.Config
 	tokenMutex sync.RWMutex
 	token      SciCatLoginResponse
-}
-
-type SciCatUrlResponse struct {
-	Url     string    `json:"url"`
-	Expires time.Time `json:"expires"`
 }
 
 type JobsResponse struct {
@@ -48,7 +43,7 @@ type SciCatLoginResponse struct {
 	CreatedAt   string `json:"created"`
 }
 
-func (s *DatasetsServiceImpl) GetUrls(c context.Context, dataset string) (api.DatasetsUrlResponse, error) {
+func (s *DatasetsServiceImpl) GetUrls(c context.Context, dataset string) (*api.DatasetsUrlResponse, error) {
 
 	if !s.isPublic(dataset) {
 		return nil, DatasetNotAccessibleError{dataset}
@@ -131,23 +126,25 @@ func parseExpirationTime(urlstr string) (time.Time, error) {
 	return result.Add(time.Second * time.Duration(expint)), nil
 }
 
-func toDatasetsUrlResponse(pid string, resp JobsResponse) (api.DatasetsUrlResponse, error) {
+func toDatasetsUrlResponse(pid string, resp JobsResponse) (*api.DatasetsUrlResponse, error) {
 	if len(resp.JobResultObject.Result) == 0 {
 		return nil, errors.New("no URLs available in job response")
 	}
 
 	result := api.DatasetsUrlResponse{}
+	result.Expires = time.Time{} // use zero-time as sentinel for max
 	for _, x := range resp.JobResultObject.Result {
 		if x.DatasetId == pid {
 			expirationTime, err := parseExpirationTime(x.Url)
 			if err != nil {
-				return result, err
+				return nil, err
 			}
-			result = append(result, SciCatUrlResponse{x.Url, expirationTime})
+			result.Urls = append(result.Urls, api.UrlInfo{Expires: expirationTime, Url: x.Url})
+			result.Expires = minTime(result.Expires, expirationTime)
 		}
 	}
 
-	return result, nil
+	return &result, nil
 }
 
 const iso8601Layout = "20060102T150405Z"

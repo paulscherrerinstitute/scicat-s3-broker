@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
@@ -14,7 +15,7 @@ import (
 )
 
 type PublisheddataService interface {
-	GetUrls(ctx context.Context, doi string) (api.PublishedDataUrlsResponse, error)
+	GetUrls(ctx context.Context, doi string) (*api.PublishedDataUrlsResponse, error)
 }
 
 type PublisheddataServiceImpl struct {
@@ -26,7 +27,7 @@ type SciCatPublishedDataItem struct {
 	DatasetPids []string `json:"datasetPids"`
 }
 
-func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (api.PublishedDataUrlsResponse, error) {
+func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (*api.PublishedDataUrlsResponse, error) {
 	filterQuery, _ := makePublishedDataQuery(doi)
 	u, err := url.Parse(fmt.Sprintf("%s/api/v4/publisheddata", s.config.SciCatURL))
 	if err != nil {
@@ -57,7 +58,7 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (api
 	}
 	type concurrentResult struct {
 		pid            string
-		datasetUrlResp api.DatasetsUrlResponse
+		datasetUrlResp *api.DatasetsUrlResponse
 	}
 	resultSlice := make([]concurrentResult, len(publishedDataResp[0].DatasetPids))
 	g, ctx := errgroup.WithContext(ctx)
@@ -74,11 +75,14 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (api
 	if err = g.Wait(); err != nil {
 		return nil, fmt.Errorf("error from a goroutine executing datasetsService.GetUrls: %w", err)
 	}
-	result := make(api.PublishedDataUrlsResponse)
+	result := api.PublishedDataUrlsResponse{}
+	result.Expires = time.Time{}
+	result.Urls = make(map[string]api.DatasetsUrlResponse)
 	for _, r := range resultSlice {
-		result[r.pid] = r.datasetUrlResp
+		result.Urls[r.pid] = *r.datasetUrlResp
+		result.Expires = minTime(result.Expires, r.datasetUrlResp.Expires)
 	}
-	return result, nil
+	return &result, nil
 }
 
 func makePublishedDataQuery(doi string) ([]byte, error) {

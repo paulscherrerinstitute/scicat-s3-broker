@@ -124,27 +124,53 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
-    DatasetsUrlResponse:
-      type: array
-      items:
-        type: object
-        properties:
-          url:
-            type: string
-            description: The URL to access the dataset
-            x-order: 1
-          expires:
-            type: string
-            format: date-time
-            description: The expiration time of the URL in RFC 3339 format
-            x-order: 2
-        required:
+    UrlInfo:
+      type: object
+      properties:
+        url:
+          type: string
+          description: The URL to access the dataset
+          x-order: 2
+        expires:
+          type: string
+          format: date-time
+          description: The expiration time of the URL in RFC 3339 format
+          x-order: 1
+      required:
         - url
         - expires
+    DatasetsUrlResponse:
+      type: object
+      properties:
+        expires:
+          type: string
+          format: date-time
+          description: The earliest expiration of all urls for this dataset
+          x-order: 1
+        urls:
+          type: array
+          items:
+            $ref: "#/components/schemas/UrlInfo"
+          x-order: 2
+      required:
+        - expires
+        - urls
     PublishedDataUrlsResponse:
       type: object
-      additionalProperties:
-        $ref: "#/components/schemas/DatasetsUrlResponse"
+      properties:
+        expires:
+          type: string
+          format: date-time
+          description: The earliest expiration of all datasets' urls
+          x-order: 1
+        urls:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/DatasetsUrlResponse"
+          x-order: 2
+      required:
+        - expires
+        - urls
     S3CredentialsResponse:
       type: object
       properties:

@@ -44,7 +44,12 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
             }]`, validTimeIso8601Str, expiresSeconds),
 			wantErr: false,
 			wantResult: api.DatasetsUrlResponse{
-				{Url: fmt.Sprintf("s3://bucket/file?X-Amz-Date=%s&X-Amz-Expires=%v", validTimeIso8601Str, expiresSeconds), Expires: now.Add(time.Second * time.Duration(expiresSeconds))},
+				Urls: []api.UrlInfo{
+					{
+						Url:     fmt.Sprintf("s3://bucket/file?X-Amz-Date=%s&X-Amz-Expires=%v", validTimeIso8601Str, expiresSeconds),
+						Expires: now.Add(time.Second * time.Duration(expiresSeconds)),
+					},
+				},
 			},
 		},
 		{
@@ -133,16 +138,17 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 				}
 			}
 
-			if !tt.wantErr && result[0].Url != tt.wantResult[0].Url {
+			if !tt.wantErr && result.Urls[0].Url != tt.wantResult.Urls[0].Url {
 				t.Errorf("GetUrls() mismatch\ngot:  %+v\nwant: %+v", result, tt.wantResult)
 			}
 		})
 	}
 }
-func TestToSciCatUrlResponse(t *testing.T) {
+func TestToDatasetsUrlResponse(t *testing.T) {
 	now := time.Now().UTC()
 	validTimeIso8601Str := now.Format(iso8601Layout)
 	expiresSeconds := 604800
+	expiresLater := 691200
 
 	tests := []struct {
 		name          string
@@ -157,12 +163,13 @@ func TestToSciCatUrlResponse(t *testing.T) {
 			inputJSON: fmt.Sprintf(`{
 				"jobResultObject": {
 					"result": [
+						{"datasetId": "pid-123", "url": "s3://bucket/file1?X-Amz-Date=%s&X-Amz-Expires=%v"},
 						{"datasetId": "pid-123", "url": "s3://bucket/file1?X-Amz-Date=%s&X-Amz-Expires=%v"}
 					]
 				}
-			}`, validTimeIso8601Str, expiresSeconds),
+			}`, validTimeIso8601Str, expiresSeconds, validTimeIso8601Str, expiresLater),
 			wantErr:       false,
-			expectedCount: 1,
+			expectedCount: 2,
 		},
 		{
 			name: "Filter Irrelevant PIDs",
@@ -225,15 +232,23 @@ func TestToSciCatUrlResponse(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				if len(got) != tt.expectedCount {
-					t.Errorf("Expected %d URLs, got %d", tt.expectedCount, len(got))
+				if len(got.Urls) != tt.expectedCount {
+					t.Errorf("Expected %d URLs, got %d", tt.expectedCount, len(got.Urls))
 				}
 				// Verify expiration is 7 days from creation
 				expectedExp := now.Add(time.Second * time.Duration(expiresSeconds))
-				diff := got[0].Expires.Sub(expectedExp)
+				diff := got.Urls[0].Expires.Sub(expectedExp)
 				tolerance := 1 * time.Second
 				if diff < -tolerance || diff > tolerance {
-					t.Errorf("Expiration date mismatch.\nGot:  %v\nWant: %v\nDiff: %v", got[0].Expires, expectedExp, diff)
+					t.Errorf("Expiration date mismatch.\nGot:  %v\nWant: %v\nDiff: %v", got.Urls[0].Expires, expectedExp, diff)
+				}
+
+				// verify that earlier expiration is present at the root
+				if tt.expectedCount == 2 {
+					expectedExp := minTime(got.Urls[0].Expires, got.Urls[1].Expires)
+					if !got.Expires.Equal(expectedExp) {
+						t.Errorf("Expected earliest expiration at the root of the response\nGot: %v\nWant: %v", got.Expires, expectedExp)
+					}
 				}
 			}
 		})
