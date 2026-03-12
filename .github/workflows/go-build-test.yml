@@ -2,24 +2,30 @@ name: Go build/test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
 
-    - name: Set up Go
-      uses: actions/setup-go@v6
-      with:
-        go-version-file: 'go.mod'
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
 
-    - name: Build
-      run: go build -v ./...
+      - name: Generate and Verify
+        run: |
+          go mod tidy
+          go generate -v ./...
+          go mod tidy        
+          git diff --exit-code
 
-    - name: Test
-      run: go test -v -race -cover ./...
+      - name: Build
+        run: go build -v ./...
+
+      - name: Test
+        run: go test -v -race -cover ./...
