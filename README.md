@@ -21,7 +21,7 @@ Also included is a simple CLI client that can be used as an AWS CLI credential p
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.26+
 - SciCat backend instance
 - Ceph or AWS-compatible S3 backend with STS enabled
 

@@ -17,16 +17,13 @@ func (h *DatasetsHandler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrls
 	datasetsUrlResp, err := h.service.GetUrls(c.Request.Context(), id.Pid)
 
 	if err != nil {
-		var notAccErr DatasetNotAccessibleError
-		var notFoundErr DatasetNotFoundError
-		switch {
-		case errors.As(err, &notAccErr):
+		if notAccErr, ok := errors.AsType[DatasetNotAccessibleError](err); ok {
 			log.Println(err)
 			c.JSON(http.StatusForbidden, gin.H{"error": notAccErr.Error()})
-		case errors.As(err, &notFoundErr):
+		} else if notFoundErr, ok := errors.AsType[DatasetNotFoundError](err); ok {
 			log.Println(err)
 			c.JSON(http.StatusNotFound, gin.H{"error": notFoundErr.Error()})
-		default:
+		} else {
 			log.Println(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		}

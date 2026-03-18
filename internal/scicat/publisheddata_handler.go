@@ -17,17 +17,13 @@ func (h *PublisheddataHandler) GetPublisheddataUrls(c *gin.Context, params api.G
 	result, err := h.service.GetUrls(c.Request.Context(), params.Id)
 	if err != nil {
 		log.Println(err)
-		var datasetNotAccErr DatasetNotAccessibleError
-		var noUrlsErr DatasetNotFoundError
-		var pubDataErr PublishedDataNotFoundError
-		switch {
-		case errors.As(err, &pubDataErr):
+		if pubDataErr, ok := errors.AsType[PublishedDataNotFoundError](err); ok {
 			c.JSON(http.StatusNotFound, gin.H{"error": pubDataErr.Error()})
-		case errors.As(err, &datasetNotAccErr):
+		} else if datasetNotAccErr, ok := errors.AsType[DatasetNotAccessibleError](err); ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": datasetNotAccErr.Error()})
-		case errors.As(err, &noUrlsErr):
+		} else if noUrlsErr, ok := errors.AsType[DatasetNotFoundError](err); ok {
 			c.JSON(http.StatusNotFound, gin.H{"error": noUrlsErr.Error()})
-		default:
+		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		}
 		return
