@@ -100,7 +100,7 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 				if r.URL.Path == "/api/v3/auth/login" && r.Method == "POST" {
 					if tt.mockLoginCode == http.StatusCreated {
 						w.WriteHeader(http.StatusCreated)
-						json.NewEncoder(w).Encode(map[string]interface{}{
+						json.NewEncoder(w).Encode(map[string]any{
 							"access_token": "dummy-token",
 							"expires_in":   3600,
 							"created":      now.Format(time.RFC3339),
