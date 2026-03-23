@@ -18,6 +18,7 @@ import (
 
 func TestDatasetsServiceGetUrls(t *testing.T) {
 	now := time.Now().UTC()
+	validTimeRFC3339Str := now.Format(time.RFC3339)
 	validTimeIso8601Str := now.Format(iso8601Layout)
 	expiresSeconds := 604800
 
@@ -39,10 +40,11 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 			mockLoginCode:  http.StatusCreated,
 			mockJobsCode:   http.StatusOK,
 			mockJobsBody: fmt.Sprintf(`[{
+				"updatedAt": "%s",
                 "jobResultObject": {
                     "result": [{"datasetId": "valid-pid", "url": "s3://bucket/file?X-Amz-Date=%s&X-Amz-Expires=%v"}]
                 }
-            }]`, validTimeIso8601Str, expiresSeconds),
+            }]`, validTimeRFC3339Str, validTimeIso8601Str, expiresSeconds),
 			wantErr: false,
 			wantResult: api.DatasetsUrlResponse{
 				Urls: []api.UrlInfo{
@@ -160,6 +162,7 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 func TestToDatasetsUrlResponse(t *testing.T) {
 	now := time.Now().UTC()
 	validTimeIso8601Str := now.Format(iso8601Layout)
+	validTimeRFC3339Str := now.Format(time.RFC3339)
 	expiresSeconds := 604800
 	expiresLater := 691200
 
@@ -174,13 +177,14 @@ func TestToDatasetsUrlResponse(t *testing.T) {
 			name: "Valid Result",
 			pid:  "pid-123",
 			inputJSON: fmt.Sprintf(`{
+				"updatedAt": "%s",
 				"jobResultObject": {
 					"result": [
 						{"datasetId": "pid-123", "url": "s3://bucket/file1?X-Amz-Date=%s&X-Amz-Expires=%v"},
 						{"datasetId": "pid-123", "url": "s3://bucket/file1?X-Amz-Date=%s&X-Amz-Expires=%v"}
 					]
 				}
-			}`, validTimeIso8601Str, expiresSeconds, validTimeIso8601Str, expiresLater),
+			}`, validTimeRFC3339Str, validTimeIso8601Str, expiresSeconds, validTimeIso8601Str, expiresLater),
 			wantErr:       false,
 			expectedCount: 2,
 		},
@@ -188,15 +192,31 @@ func TestToDatasetsUrlResponse(t *testing.T) {
 			name: "Filter Irrelevant PIDs",
 			pid:  "pid-123",
 			inputJSON: fmt.Sprintf(`{
+				"updatedAt": "%s",
 				"jobResultObject": {
 					"result": [
 						{"datasetId": "pid-123", "url": "s3://bucket/match?X-Amz-Date=%s&X-Amz-Expires=%v"},
 						{"datasetId": "pid-456", "url": "s3://bucket/ignore"}
 					]
 				}
-			}`, validTimeIso8601Str, expiresSeconds),
+			}`, validTimeRFC3339Str, validTimeIso8601Str, expiresSeconds),
 			wantErr:       false,
 			expectedCount: 1,
+		},
+		{
+			name: "Missing Expiration Query Params",
+			pid:  "pid-123",
+			inputJSON: fmt.Sprintf(`{
+				"updatedAt": "%s",
+				"jobResultObject": {
+					"result": [
+						{"datasetId": "pid-123", "url": "s3://bucket/file1"},
+						{"datasetId": "pid-123", "url": "s3://bucket/file2?X-Amz-Date=%s&X-Amz-Expires=%v"}
+					]
+				}
+			}`, validTimeRFC3339Str, validTimeIso8601Str, expiresSeconds),
+			wantErr:       false,
+			expectedCount: 2,
 		},
 		{
 			name: "Empty Result List",
