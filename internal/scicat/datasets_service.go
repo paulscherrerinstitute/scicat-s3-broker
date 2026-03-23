@@ -29,6 +29,7 @@ type DatasetsServiceImpl struct {
 }
 
 type JobsResponse struct {
+	UpdatedAt       string `json:"updatedAt"`
 	JobResultObject struct {
 		Result []struct {
 			DatasetId string `json:"datasetId"`
@@ -128,6 +129,18 @@ func parseExpirationTime(urlstr string) (time.Time, error) {
 	return result.Add(time.Second * time.Duration(expint)), nil
 }
 
+func getExpirationFromJobResponse(jobResp JobsResponse) (time.Time, error) {
+	updatedAt := jobResp.UpdatedAt
+	if updatedAt == "" {
+		return time.Time{}, errors.New("missing updatedAt field in job response")
+	}
+	parsedTime, err := time.Parse(time.RFC3339, updatedAt)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse updatedAt time: %w", err)
+	}
+	return parsedTime.AddDate(0, 0, 7), nil
+}
+
 func toDatasetsUrlResponse(pid string, resp JobsResponse) (*api.DatasetsUrlResponse, error) {
 	if len(resp.JobResultObject.Result) == 0 {
 		return nil, errors.New("no URLs available in job response")
@@ -135,11 +148,16 @@ func toDatasetsUrlResponse(pid string, resp JobsResponse) (*api.DatasetsUrlRespo
 
 	result := api.DatasetsUrlResponse{}
 	result.Expires = time.Time{} // use zero-time as sentinel for max
+
+	topLevelExpiration, err := getExpirationFromJobResponse(resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get expiration from job response: %w", err)
+	}
 	for _, x := range resp.JobResultObject.Result {
 		if x.DatasetId == pid {
 			expirationTime, err := parseExpirationTime(x.Url)
 			if err != nil {
-				return nil, err
+				expirationTime = topLevelExpiration
 			}
 			result.Urls = append(result.Urls, api.UrlInfo{Expires: expirationTime, Url: x.Url})
 			result.Expires = minTime(result.Expires, expirationTime)
@@ -254,7 +272,7 @@ func makeJobsFilter(pid string) ([]byte, error) {
 			"statusCode":                "finishedSuccessful",
 			"jobParams.datasetList.pid": pid,
 		},
-		"sort": gin.H{"createdAt": -1},
+		"sort": gin.H{"updatedAt": -1},
 		"limits": gin.H{
 			"limit": 1,
 			"skip":  0,
