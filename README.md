@@ -13,6 +13,7 @@ Also included is a simple CLI client that can be used as an AWS CLI credential p
 
 - 🔑 **Credential broker**: returns temporary S3 credentials for a given dataset.
 - 📥 **Download URLs** for public datasets: get presigned URLs for retrieved, public datasets.
+- 📤 **Upload sessions**: get a pair of presigned PUT/GET URLs for a fresh random object path with a tiered expiry (1d/3d/7d).
 - 🛡 **Authorization via SciCat**: forwards the end-user’s SciCat token for access checks. //TO-DO
 
 ---
@@ -31,14 +32,16 @@ The following environement variables are available for configuration:
 
 | env var              | required | default    | description                                                 | example                            |
 | -------------------- | -------- | ---------- | ----------------------------------------------------------- | ---------------------------------- |
-| SCICAT_URL           | yes      |            | SciCat backend base url                                     | https://scicat.development.psi.ch/ |
+| SCICAT_URL           | no\*     |            | SciCat backend base url                                     | https://scicat.development.psi.ch/ |
 | JOB_MANAGER_USERNAME | no       | jobManager | credentials for functional account to query /jobs in SciCat |                                    |
 | JOB_MANAGER_PASSWORD | no\*     | ""         |                                                             |                                    |
+| S3_BUCKET            | no\*\*   |            | Bucket used by `/upload-session` for storing uploads        | aiidalab-exchange                  |
 | PORT                 | no       | 8080       | The port to serve from. This is a Gin configuration         |                                    |
 | GIN_MODE             | no       | debug      | Set to `release` for production                             |                                    |
 
-\* JOB_MANAGER_PASSWORD is _required_ for the `/datasets/urls` endpoint. If not set, the server returns `HTTP 501 Not Implemented`.
-It is not required for the `/datasets/s3-creds` endpoint.
+\* `SCICAT_URL` and `JOB_MANAGER_PASSWORD` are _required_ for the `/datasets/urls` endpoint. If either is missing, the server returns `HTTP 501 Not Implemented` for that endpoint. They are not required for `/datasets/s3-creds` or `/upload-session`.
+
+\*\* `S3_BUCKET` is _required_ for the `/upload-session` endpoint. If not set, that endpoint returns `HTTP 500`.
 
 #### AWS Config
 The AWS shared config and credentials files are in [env/](./env) directory. Copy `credentials.example` to `credentials` and replace with your secret / access key.
@@ -74,6 +77,42 @@ Response:
   "expiry_time": "2025-09-09T16:20:00Z"
 }
 ```
+
+###### /upload-session
+
+```bash
+# default (1 day)
+curl "http://localhost:8080/upload-session?filename=myfile.dat"
+
+# 3 days
+curl "http://localhost:8080/upload-session?filename=myfile.dat&expiry=3d"
+
+# 7 days
+curl "http://localhost:8080/upload-session?filename=myfile.dat&expiry=7d"
+```
+
+Response:
+
+```json
+{
+  "upload_url": "https://rgw.example.com/bucket/d1/<random>/myfile.dat?X-Amz-...",
+  "download_url": "https://rgw.example.com/bucket/d1/<random>/myfile.dat?X-Amz-...",
+  "path": "d1/<random>/myfile.dat",
+  "expires": "2026-05-07T00:00:00Z"
+}
+```
+
+Then:
+
+```bash
+# User1 uploads
+curl -X PUT -T myfile.dat "<upload_url>"
+
+# User2 downloads
+curl "<download_url>" -o myfile.dat
+```
+
+Files are stored under `d1/`, `d3/`, or `d7/` prefixes inside `S3_BUCKET` based on the requested expiry. Configure matching S3 lifecycle rules on the bucket so objects are automatically deleted after 1, 3, or 7 days respectively.
 
 ###### /datasets/urls
 

@@ -17,18 +17,18 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	s3Handler := s3.NewHandler()
+	s3Handler := s3.NewHandler(cfg)
 
 	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status": "healthy",
-		})
+		c.JSON(200, gin.H{"status": "healthy"})
 	})
+	router.GET("/upload-session", s3Handler.CreateUploadSession)
+
 	type SciCatHandler = scicat.Handler
 	type SciCatNotImplHandler = scicat.NotImplHandler
 	type S3Handler = s3.Handler
 
-	if cfg.JobManagerPassword != "" {
+	if cfg.SciCatURL != "" && cfg.JobManagerPassword != "" {
 		var h api.ServerInterface = struct {
 			*SciCatHandler
 			*S3Handler

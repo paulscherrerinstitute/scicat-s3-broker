@@ -1,32 +1,34 @@
 package s3
 
 import (
-	"net/http"
-
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log"
+	"net/http"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
+	appconfig "github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 )
 
-type Handler struct{}
+type Handler struct {
+	cfg *appconfig.Config
+}
 
-func NewHandler() *Handler {
-	return &Handler{}
+func NewHandler(cfg *appconfig.Config) *Handler {
+	return &Handler{cfg: cfg}
 }
 
 // GetDatasetsS3Creds handles the /datasets/s3-creds endpoint
-func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
-	// Get the dataset parameter from query string
+func (h *Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
 	dataset := params.Pid
 
-	// Get the Authorization header
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -44,14 +46,14 @@ func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3Creds
 		return
 	}
 
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithSharedCredentialsFiles(
+	cfg, err := awsconfig.LoadDefaultConfig(context.TODO(),
+		awsconfig.WithSharedCredentialsFiles(
 			[]string{"env/credentials"},
 		),
-		config.WithSharedConfigFiles(
+		awsconfig.WithSharedConfigFiles(
 			[]string{"env/config"},
 		),
-		config.WithSharedConfigProfile("ceph"))
+		awsconfig.WithSharedConfigProfile("ceph"))
 	if err != nil {
 		log.Printf("Failed to load AWS config: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -120,4 +122,86 @@ func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3Creds
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+type expiryTier struct {
+	duration time.Duration
+	prefix   string
+}
+
+var expiryTiers = map[string]expiryTier{
+	"1d": {24 * time.Hour, "d1"},
+	"3d": {72 * time.Hour, "d3"},
+	"7d": {168 * time.Hour, "d7"},
+}
+
+// CreateUploadSession generates presigned PUT and GET URLs for a new random object path.
+// Optional query param: expiry=1d|3d|7d (default: 1d)
+func (h *Handler) CreateUploadSession(c *gin.Context) {
+	filename := c.Query("filename")
+	if filename == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "filename query parameter is required"})
+		return
+	}
+	if h.cfg.S3Bucket == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "S3_BUCKET is not configured"})
+		return
+	}
+
+	expiryKey := c.DefaultQuery("expiry", "1d")
+	tier, ok := expiryTiers[expiryKey]
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "expiry must be one of: 1d, 3d, 7d"})
+		return
+	}
+	duration := tier.duration
+
+	cfg, err := awsconfig.LoadDefaultConfig(context.TODO(),
+		awsconfig.WithSharedCredentialsFiles([]string{"env/credentials"}),
+		awsconfig.WithSharedConfigFiles([]string{"env/config"}),
+		awsconfig.WithSharedConfigProfile("ceph"))
+	if err != nil {
+		log.Printf("Failed to load AWS config: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	objectKey := tier.prefix + "/" + randomID() + "/" + filename
+
+	presigner := s3.NewPresignClient(s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.UsePathStyle = true
+	}))
+
+	putReq, err := presigner.PresignPutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket: aws.String(h.cfg.S3Bucket),
+		Key:    aws.String(objectKey),
+	}, s3.WithPresignExpires(duration))
+	if err != nil {
+		log.Printf("Failed to presign PUT: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	getReq, err := presigner.PresignGetObject(context.TODO(), &s3.GetObjectInput{
+		Bucket: aws.String(h.cfg.S3Bucket),
+		Key:    aws.String(objectKey),
+	}, s3.WithPresignExpires(duration))
+	if err != nil {
+		log.Printf("Failed to presign GET: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	c.PureJSON(http.StatusOK, gin.H{
+		"upload_url":   putReq.URL,
+		"download_url": getReq.URL,
+		"path":         objectKey,
+		"expires":      time.Now().Add(duration),
+	})
+}
+
+func randomID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
