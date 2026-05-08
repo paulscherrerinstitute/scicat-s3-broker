@@ -8,6 +8,7 @@ import (
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/s3"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/scicat"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/openapi"
 )
 
 func main() {
@@ -18,6 +19,8 @@ func main() {
 	}
 
 	s3Handler := s3.NewHandler()
+
+	openapi.RegisterSpecRoutes(router)
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
