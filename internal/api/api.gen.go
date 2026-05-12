@@ -16,6 +16,24 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "BearerAuth.Scopes"
 )
 
+// Defines values for GetDatasetsS3CredsParamsOperation.
+const (
+	Read  GetDatasetsS3CredsParamsOperation = "read"
+	Write GetDatasetsS3CredsParamsOperation = "write"
+)
+
+// Valid indicates whether the value is a known member of the GetDatasetsS3CredsParamsOperation enum.
+func (e GetDatasetsS3CredsParamsOperation) Valid() bool {
+	switch e {
+	case Read:
+		return true
+	case Write:
+		return true
+	default:
+		return false
+	}
+}
+
 // DatasetsUrlResponse defines model for DatasetsUrlResponse.
 type DatasetsUrlResponse struct {
 	// Expires The earliest expiration of all urls for this dataset
@@ -67,7 +85,13 @@ type bearerAuthContextKey string
 type GetDatasetsS3CredsParams struct {
 	// Pid The unique identifier of the dataset
 	Pid string `form:"pid" json:"pid"`
+
+	// Operation The operation to request credentials for
+	Operation *GetDatasetsS3CredsParamsOperation `form:"operation,omitempty" json:"operation,omitempty"`
 }
+
+// GetDatasetsS3CredsParamsOperation defines parameters for GetDatasetsS3Creds.
+type GetDatasetsS3CredsParamsOperation string
 
 // GetDatasetsUrlsParams defines parameters for GetDatasetsUrls.
 type GetDatasetsUrlsParams struct {
@@ -119,6 +143,14 @@ func (siw *ServerInterfaceWrapper) GetDatasetsS3Creds(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, true, "pid", c.Request.URL.Query(), &params.Pid, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pid: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "operation" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "operation", c.Request.URL.Query(), &params.Operation, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter operation: %w", err), http.StatusBadRequest)
 		return
 	}
 
