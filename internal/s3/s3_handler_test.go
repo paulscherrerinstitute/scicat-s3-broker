@@ -44,7 +44,7 @@ func TestS3Handler_GetDatasetsS3Creds(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.authorizer)
+			handler := &Handler{authorizer: tt.authorizer}
 
 			req := httptest.NewRequest(http.MethodGet, "/datasets/s3-creds", nil)
 			w := httptest.NewRecorder()
