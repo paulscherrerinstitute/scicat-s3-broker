@@ -97,6 +97,14 @@ paths:
           schema:
             type: string
           description: The unique identifier of the dataset
+        - in: query
+          name: operation
+          required: false
+          schema:
+            type: string
+            enum: [read, write]
+            default: read
+          description: The operation to request credentials for
       responses:
         "200":
           description: Temporary S3 credentials for the dataset

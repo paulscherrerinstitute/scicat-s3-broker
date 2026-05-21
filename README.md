@@ -31,14 +31,15 @@ The following environement variables are available for configuration:
 
 | env var              | required | default    | description                                                 | example                            |
 | -------------------- | -------- | ---------- | ----------------------------------------------------------- | ---------------------------------- |
-| SCICAT_URL           | yes      |            | SciCat backend base url                                     | https://scicat.development.psi.ch/ |
+| SCICAT_URL           | no\*    |            | SciCat backend base url                                     | https://scicat.development.psi.ch/ |
 | JOB_MANAGER_USERNAME | no       | jobManager | credentials for functional account to query /jobs in SciCat |                                    |
 | JOB_MANAGER_PASSWORD | no\*     | ""         |                                                             |                                    |
 | PORT                 | no       | 8080       | The port to serve from. This is a Gin configuration         |                                    |
 | GIN_MODE             | no       | debug      | Set to `release` for production                             |                                    |
 
-\* JOB_MANAGER_PASSWORD is _required_ for the `/datasets/urls` endpoint. If not set, the server returns `HTTP 501 Not Implemented`.
-It is not required for the `/datasets/s3-creds` endpoint.
+\* `SCICAT_URL` and `JOB_MANAGER_PASSWORD` are both _required_ for the `/datasets/urls` and `/publisheddata/urls` endpoints. If either is not set, the server returns `HTTP 501 Not Implemented`.
+
+If `SCICAT_URL` is set, `/datasets/s3-creds` validates the bearer token against SciCat via [SciCatAuthorizer](./internal/auth/scicat_authorizer.go). If unset, it uses [NoOpAuthorizer](./internal/auth/noop_authorizer.go) (no token validation).
 
 #### AWS Config
 The AWS shared config and credentials files are in [env/](./env) directory. Copy `credentials.example` to `credentials` and replace with your secret / access key.
@@ -56,6 +57,8 @@ go run ./cmd/server
 The server will start on port `8080` by default, or `${PORT}` env variable if specified.
 
 ##### Example requests
+
+Visit the OpenAPI explorer at http://localhost:8080/docs
 
 ###### /datasets/s3-creds
 

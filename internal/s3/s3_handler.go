@@ -1,49 +1,25 @@
 package s3
 
 import (
-	"net/http"
-
 	"context"
+	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/auth"
 )
 
-type Handler struct{}
-
-func NewHandler() *Handler {
-	return &Handler{}
+type Handler struct {
+	authorizer auth.Authorizer
+	stsClient  *sts.Client
 }
 
-// GetDatasetsS3Creds handles the /datasets/s3-creds endpoint
-func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
-	// Get the dataset parameter from query string
-	dataset := params.Pid
-
-	// Get the Authorization header
-	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Authorization header is required",
-		})
-		return
-	}
-
-	// TODO: In a real implementation, validate the SciCat token here
-	// For now, we'll just check if it starts with "Bearer "
-	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid authorization header format. Expected 'Bearer <token>'",
-		})
-		return
-	}
-
+func NewHandler(authorizer auth.Authorizer) *Handler {
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithSharedCredentialsFiles(
 			[]string{"env/credentials"},
@@ -53,53 +29,36 @@ func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3Creds
 		),
 		config.WithSharedConfigProfile("ceph"))
 	if err != nil {
-		log.Printf("Failed to load AWS config: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Internal server error",
-		})
-		return
+		log.Fatalf("Failed to load AWS config: %v", err)
 	}
 
-	s3Client := s3.NewFromConfig(cfg)
-	out, err := s3Client.ListBuckets(context.TODO(), &s3.ListBucketsInput{})
+	return &Handler{authorizer: authorizer, stsClient: sts.NewFromConfig(cfg)}
+}
+
+// GetDatasetsS3Creds handles the /datasets/s3-creds endpoint
+func (h *Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
+	dataset := params.Pid
+
+	operation, err := parseOperation(params.Operation)
 	if err != nil {
-		log.Printf("Failed to list S3 buckets: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Internal server error",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	for _, bucket := range out.Buckets {
-		log.Printf("Bucket: %s, Created on: %s", *bucket.Name, bucket.CreationDate)
+
+	if err := h.authorizer.Authorize(c, dataset, operation); err != nil {
+		log.Println("authorization failed", err)
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
+		return
 	}
 
-	stsClient := sts.NewFromConfig(cfg)
-	policy := `{
-		"Version": "2012-10-17",
-		"Statement": [
-			{
-				"Effect": "Allow",
-				"Action": "s3:*",
-				"Resource": [
-					"arn:aws:s3:::datasets/` + dataset + `",
-					"arn:aws:s3:::datasets/` + dataset + `/*"
-				]
-			},
-			{
-				"Effect": "Allow",
-				"Action": "s3:ListBucket",
-				"Resource": "arn:aws:s3:::datasets",
-				"Condition": {
-					"StringLike": {
-						"s3:prefix": [
-							"` + dataset + `/"
-						]
-					}
-				}
-			}
-		]
-	}`
-	stsOut, err := stsClient.AssumeRole(context.TODO(), &sts.AssumeRoleInput{
+	policy, err := buildScopedPolicy(dataset, operation)
+	if err != nil {
+		log.Printf("Failed to build policy: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	stsOut, err := h.stsClient.AssumeRole(c.Request.Context(), &sts.AssumeRoleInput{
 		RoleArn:         aws.String("arn:aws:iam:::role/PsiLimitedAccessRole"),
 		RoleSessionName: aws.String("scicat-session"),
 		Policy:          aws.String(policy),
@@ -120,4 +79,18 @@ func (*Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3Creds
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+func parseOperation(op *api.GetDatasetsS3CredsParamsOperation) (auth.Operation, error) {
+	if op == nil {
+		return auth.OperationRead, nil
+	}
+	switch *op {
+	case api.Read:
+		return auth.OperationRead, nil
+	case api.Write:
+		return auth.OperationWrite, nil
+	default:
+		return 0, fmt.Errorf("invalid operation %q, expected read or write", *op)
+	}
 }
