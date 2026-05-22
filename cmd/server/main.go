@@ -42,7 +42,7 @@ func main() {
 	} else {
 		authorizer = auth.NewNoOpAuthorizer()
 	}
-	s3Handler := s3.NewHandler(authorizer)
+	s3Handler := s3.NewHandler(authorizer, cfg.BucketConfig)
 
 	if cfg.SciCatURL != "" && cfg.JobManagerPassword != "" {
 		var h api.ServerInterface = struct {
