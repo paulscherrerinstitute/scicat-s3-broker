@@ -26,6 +26,7 @@ func main() {
 	dataset := flag.String("dataset", "", "Dataset PID or ID")
 	token := flag.String("token", os.Getenv("SCICAT_TOKEN"), "SciCat access token")
 	api := flag.String("api", "http://localhost:8080/datasets/s3-creds", "SciCat S3 creds endpoint")
+	operation := flag.String("operation", "read", "operation to request: read or write")
 	flag.Parse()
 
 	if *dataset == "" || *token == "" {
@@ -33,8 +34,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *operation != "read" && *operation != "write" {
+		fmt.Fprintln(os.Stderr, "operation must be 'read' or 'write'")
+		os.Exit(1)
+	}
+
 	// Prepare request
-	req, err := http.NewRequest("GET", *api+"?pid="+*dataset, nil)
+	req, err := http.NewRequest("GET", *api+"?pid="+*dataset+"&operation="+*operation, nil)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

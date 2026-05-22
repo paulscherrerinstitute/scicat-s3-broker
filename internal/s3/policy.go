@@ -25,15 +25,18 @@ type policyCondition struct {
 
 // buildScopedPolicy returns an IAM policy JSON string that restricts access to
 // the given dataset and operation
-func buildScopedPolicy(dataset string, operation auth.Operation) (string, error) {
-	datasetArn := "arn:aws:s3:::datasets/" + dataset
-
+func (h *Handler) buildScopedPolicy(dataset string, operation auth.Operation) (string, error) {
 	var objectActions any
+	var bucket string
 	if operation == auth.OperationWrite {
 		objectActions = "s3:*"
+		bucket = h.bucketConfig.UploadBucket
 	} else {
 		objectActions = []string{"s3:Get*", "s3:List*"}
+		bucket = h.bucketConfig.RetrieveBucket
 	}
+
+	datasetArn := "arn:aws:s3:::" + bucket + "/" + dataset
 
 	doc := policyDocument{
 		Version: "2012-10-17",
@@ -46,7 +49,7 @@ func buildScopedPolicy(dataset string, operation auth.Operation) (string, error)
 			{
 				Effect:   "Allow",
 				Action:   "s3:ListBucket",
-				Resource: "arn:aws:s3:::datasets",
+				Resource: "arn:aws:s3:::" + bucket,
 				Condition: &policyCondition{
 					StringLike: map[string][]string{
 						"s3:prefix": {dataset + "/"},

@@ -7,32 +7,34 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gin-gonic/gin"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/auth"
+	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/config"
 )
 
 type Handler struct {
-	authorizer auth.Authorizer
-	stsClient  *sts.Client
+	authorizer   auth.Authorizer
+	stsClient    *sts.Client
+	bucketConfig config.BucketConfig
 }
 
-func NewHandler(authorizer auth.Authorizer) *Handler {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithSharedCredentialsFiles(
+func NewHandler(authorizer auth.Authorizer, bucketConfig config.BucketConfig) *Handler {
+	cfg, err := awsConfig.LoadDefaultConfig(context.TODO(),
+		awsConfig.WithSharedCredentialsFiles(
 			[]string{"env/credentials"},
 		),
-		config.WithSharedConfigFiles(
+		awsConfig.WithSharedConfigFiles(
 			[]string{"env/config"},
 		),
-		config.WithSharedConfigProfile("ceph"))
+		awsConfig.WithSharedConfigProfile("ceph"))
 	if err != nil {
 		log.Fatalf("Failed to load AWS config: %v", err)
 	}
 
-	return &Handler{authorizer: authorizer, stsClient: sts.NewFromConfig(cfg)}
+	return &Handler{authorizer: authorizer, stsClient: sts.NewFromConfig(cfg), bucketConfig: bucketConfig}
 }
 
 // GetDatasetsS3Creds handles the /datasets/s3-creds endpoint
@@ -51,7 +53,7 @@ func (h *Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3Cre
 		return
 	}
 
-	policy, err := buildScopedPolicy(dataset, operation)
+	policy, err := h.buildScopedPolicy(dataset, operation)
 	if err != nil {
 		log.Printf("Failed to build policy: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
