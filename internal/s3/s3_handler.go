@@ -35,9 +35,9 @@ func NewHandler(authorizer auth.Authorizer) *Handler {
 	return &Handler{authorizer: authorizer, stsClient: sts.NewFromConfig(cfg)}
 }
 
-// GetDatasetsS3Creds handles the /datasets/s3-creds endpoint
-func (h *Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
-	dataset := params.Pid
+// GetS3Creds handles the /s3-creds endpoint
+func (h *Handler) GetS3Creds(c *gin.Context, params api.GetS3CredsParams) {
+	dataset := params.Id
 
 	operation, err := parseOperation(params.Operation)
 	if err != nil {
@@ -81,7 +81,7 @@ func (h *Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3Cre
 	c.JSON(http.StatusOK, response)
 }
 
-func parseOperation(op *api.GetDatasetsS3CredsParamsOperation) (auth.Operation, error) {
+func parseOperation(op *api.GetS3CredsParamsOperation) (auth.Operation, error) {
 	if op == nil {
 		return auth.OperationRead, nil
 	}

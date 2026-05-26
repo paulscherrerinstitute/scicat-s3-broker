@@ -21,12 +21,12 @@ var errMockDatasetsInternal = errors.New("internal error")
 var timeA = time.Now()
 var timeB = time.Now().AddDate(0, 0, 1)
 
-func (m *mockDatasetsServiceImpl) GetUrls(c context.Context, dataset string) (*api.DatasetsUrlResponse, error) {
+func (m *mockDatasetsServiceImpl) GetUrls(c context.Context, dataset string) (*api.UrlInfoList, error) {
 	switch dataset {
 	case "pid1":
-		return &api.DatasetsUrlResponse{Expires: timeA, Urls: []api.UrlInfo{{Url: "http://example.com/pid1"}}}, nil
+		return &api.UrlInfoList{Expires: timeA, Urls: []api.UrlInfo{{Url: "http://example.com/pid1"}}}, nil
 	case "pid2":
-		return &api.DatasetsUrlResponse{Expires: timeB, Urls: []api.UrlInfo{{Url: "http://example.com/pid2"}}}, nil
+		return &api.UrlInfoList{Expires: timeB, Urls: []api.UrlInfo{{Url: "http://example.com/pid2"}}}, nil
 	case "pid-no-urls":
 		return nil, DatasetNotFoundError{Pid: dataset}
 	default:
@@ -53,7 +53,7 @@ func TestPublisheddataServiceGetUrls(t *testing.T) {
 			wantErr: false,
 			wantResult: api.PublishedDataUrlsResponse{
 				Expires: timeA,
-				Urls: map[string]api.DatasetsUrlResponse{
+				Urls: map[string]api.UrlInfoList{
 					"pid1": {Expires: timeA, Urls: []api.UrlInfo{{Url: "http://example.com/pid1"}}},
 					"pid2": {Expires: timeB, Urls: []api.UrlInfo{{Url: "http://example.com/pid2"}}},
 				},

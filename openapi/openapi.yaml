@@ -1,11 +1,77 @@
 openapi: 3.0.0
 info:
-  title: SciCat S3 Broker
-  version: 0.1.0
+  title: ETH S3 Data Exchange API
+  version: 0.2.0
+  description: |-
+    This represents the API for interoperable exchange of data between ETH-domain research data services. The S3 protocol is used for the actual data transfer. The endpoints are deliberately kept minimal, and are focused on converting service-specific concepts standard S3 queries.
+
+    Resources may consist of either a single file (an S3 object), a directory (an S3 prefix), or a list of several objects and prefixes.
+
+    Some resources may require authentication. Clients should provide an authorization token in the `Authorization: Bearer` header authenticating the user to the service.
+
+    This also includes SciCat-specific endpoints for convenience that are not included in the common specification. These use SciCat vocabulary:
+    - Datasets are identified by PID, and resolve to a single Url
+    - PublishedData are identified by id or DOI, and resolve to a map between dataset PIDs and URLs
+tags:
+  - name: discovery
+    description: Finding S3 information from service identifiers
+  - name: auth
+    description: Obtaining S3 credentials by authenticating against the service
+  - name: scicat
+    description: Endpoints specific to SciCat resources
+
 paths:
+  /urls:
+    get:
+      summary: Get URLs for a resource.
+      description: |-
+        Each resource is mapped to one or more URIs. URIs may include:
+          - HTTP(S) URL to particular files (`https://mysite)
+          - S3 URI to a bucket and object (`s3://bucket/file.tar`)
+          - S3 URI to a bucket and prefix (`s3://bucket/prefix`)
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The id of the resource.
+      tags: [discovery]
+      responses:
+        "200":
+          description: A mapping of resource IDs to their URLs and expiration times
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UrlInfoList"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No resource with `id` was found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The resource is not public or accessible with the provided credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /datasets/urls:
     get:
-      summary: Get download URLs for a dataset
+      summary: Get download URLs for a dataset. Equivalent to `/urls?id={pid}` but returns a single URL.
+      tags: [scicat]
       parameters:
         - in: query
           name: pid
@@ -19,7 +85,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DatasetsUrlResponse"
+                $ref: "#/components/schemas/UrlInfo"
         "400":
           description: Bad Request
           content:
@@ -46,7 +112,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /publisheddata/urls:
     get:
-      summary: Get download URLs for a published data
+      summary: Get download URLs for a SciCat PublishedData entry, which may include multiple datasets
+      tags: [scicat]
       parameters:
         - in: query
           name: id
@@ -85,33 +152,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /datasets/s3-creds:
+  /s3-creds:
     get:
-      summary: Get temporary S3 credentials for a dataset
+      summary: Get temporary S3 credentials for a resource.
+
+      description: |-
+        Obtain temporary S3 credentials for a resource. The authorization policy for different types of resources may depend on the configuration, which may include public access, checking an OIDC claim, or calling an external service such as SciCat.
+
+        Credentials are returned along with the resource URLs, avoiding a second call to `/urls`.
+
+      tags: [auth]
       security:
         - BearerAuth: []
       parameters:
         - in: query
-          name: pid
+          name: id
           required: true
           schema:
             type: string
-          description: The unique identifier of the dataset
+          description: The unique identifier of the resource for purposes of authorization
         - in: query
           name: operation
           required: false
           schema:
             type: string
-            enum: [read, write]
+            enum: ["read", "write", "delete"]
             default: read
-          description: The operation to request credentials for
+          description: "Requested authorization operation: read, write, or delete."
+
       responses:
         "200":
-          description: Temporary S3 credentials for the dataset
+          description: Temporary S3 credentials for the resource
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/S3CredentialsResponse"
+                $ref: "#/components/schemas/CredentialedUrlResponse"
         "400":
           description: Bad Request
           content:
@@ -119,7 +194,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Dataset not public or accessible
+          description: Resource not public or accessible
           content:
             application/json:
               schema:
@@ -130,14 +205,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     UrlInfo:
       type: object
+      description: Single URL with expiration
       properties:
         url:
           type: string
-          description: The URL to access the dataset
+          description: The URI to access the dataset. This should use either the HTTP(S) or S3 protocol
           x-order: 2
         expires:
           type: string
@@ -147,38 +224,45 @@ components:
       required:
         - url
         - expires
-    DatasetsUrlResponse:
+    UrlInfoList:
       type: object
+      description: A list of URLs
       properties:
+        id:
+          type: string
+          description: identifier for the resource, if applicable
+          example: "10.1234/example"
+          x-order: 1
         expires:
           type: string
           format: date-time
-          description: The earliest expiration of all urls for this dataset
-          x-order: 1
+          description: The earliest expiration of all urls for this resource
+          x-order: 2
         urls:
           type: array
           items:
             $ref: "#/components/schemas/UrlInfo"
-          x-order: 2
+          x-order: 3
       required:
-        - expires
         - urls
+        - expires
     PublishedDataUrlsResponse:
       type: object
       properties:
         expires:
           type: string
           format: date-time
-          description: The earliest expiration of all datasets' urls
+          description: The earliest expiration of all urls for this published data
           x-order: 1
         urls:
           type: object
           additionalProperties:
-            $ref: "#/components/schemas/DatasetsUrlResponse"
+            $ref: "#/components/schemas/UrlInfoList"
           x-order: 2
       required:
         - expires
         - urls
+
     S3CredentialsResponse:
       type: object
       properties:
@@ -200,6 +284,18 @@ components:
       - secret_access_key
       - session_token
       - expiry_time
+    CredentialedUrlResponse:
+      type: object
+      properties:
+        uri:
+          type: string
+          description: s3 or https URI on which read/write permissions are granted
+        credentials:
+          $ref: "#/components/schemas/S3CredentialsResponse"
+      required:
+      - uri
+      - credentials
+
     ErrorResponse:
       type: object
       properties:

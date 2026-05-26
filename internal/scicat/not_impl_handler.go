@@ -12,6 +12,13 @@ type NotImplHandler struct{}
 func NewNoImplHandler() *NotImplHandler {
 	return &NotImplHandler{}
 }
+
+func (*NotImplHandler) GetUrls(c *gin.Context, _ api.GetUrlsParams) {
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error": "This endpoint is disabled",
+	})
+}
+
 func (*NotImplHandler) GetDatasetsUrls(c *gin.Context, _ api.GetDatasetsUrlsParams) {
 	c.JSON(http.StatusNotImplemented, gin.H{
 		"error": "This endpoint is disabled",

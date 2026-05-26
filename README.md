@@ -1,6 +1,7 @@
 # SciCat S3 Broker
 
-A lightweight service that brokers short-term S3 credentials for SciCat datasets.  
+A lightweight service that brokers short-term S3 credentials for SciCat datasets.
+This service implements the ETH S3 Data Exchange API.
 It delegates authorization to SciCat, then issues temporary, scoped S3 credentials
 (e.g. via Ceph STS) that clients can consume through the AWS SDK/CLI
 using the [`credential_process`](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sourcing-external.html) mechanism.
@@ -31,7 +32,7 @@ The following environement variables are available for configuration:
 
 | env var              | required | default    | description                                                 | example                            |
 | -------------------- | -------- | ---------- | ----------------------------------------------------------- | ---------------------------------- |
-| SCICAT_URL           | no\*    |            | SciCat backend base url                                     | https://scicat.development.psi.ch/ |
+| SCICAT_URL           | no\*     |            | SciCat backend base url                                     | https://scicat.development.psi.ch/ |
 | JOB_MANAGER_USERNAME | no       | jobManager | credentials for functional account to query /jobs in SciCat |                                    |
 | JOB_MANAGER_PASSWORD | no\*     | ""         |                                                             |                                    |
 | PORT                 | no       | 8080       | The port to serve from. This is a Gin configuration         |                                    |
@@ -39,9 +40,10 @@ The following environement variables are available for configuration:
 
 \* `SCICAT_URL` and `JOB_MANAGER_PASSWORD` are both _required_ for the `/datasets/urls` and `/publisheddata/urls` endpoints. If either is not set, the server returns `HTTP 501 Not Implemented`.
 
-If `SCICAT_URL` is set, `/datasets/s3-creds` validates the bearer token against SciCat via [SciCatAuthorizer](./internal/auth/scicat_authorizer.go). If unset, it uses [NoOpAuthorizer](./internal/auth/noop_authorizer.go) (no token validation).
+If `SCICAT_URL` is set, `/s3-creds` validates the bearer token against SciCat via [SciCatAuthorizer](./internal/auth/scicat_authorizer.go). If unset, it uses [NoOpAuthorizer](./internal/auth/noop_authorizer.go) (no token validation).
 
 #### AWS Config
+
 The AWS shared config and credentials files are in [env/](./env) directory. Copy `credentials.example` to `credentials` and replace with your secret / access key.
 
 ### Run locally
@@ -60,11 +62,11 @@ The server will start on port `8080` by default, or `${PORT}` env variable if sp
 
 Visit the OpenAPI explorer at http://localhost:8080/docs
 
-###### /datasets/s3-creds
+###### /s3-creds
 
 ```bash
 curl -H "Authorization: Bearer <scicat-token>" \
-  "http://localhost:8080/datasets/s3-creds?pid=PID12345"
+  "http://localhost:8080/s3-creds?id=PID12345"
 ```
 
 Response:
@@ -78,10 +80,10 @@ Response:
 }
 ```
 
-###### /datasets/urls
+###### /urls
 
 ```bash
-curl http://localhost:8080/datasets/urls?pid=20.500.11935/0e54729b-75c5-42fa-a628-aae5dc3f3dae
+curl http://localhost:8080/urls?id=20.500.11935/0e54729b-75c5-42fa-a628-aae5dc3f3dae
 ```
 
 Response:
@@ -100,14 +102,14 @@ Response:
 ```bash
 git clone https://github.com/paulscherrerinstitute/scicat-s3-broker.git
 cd scicat-s3-broker
-go run ./cmd/client/credential_process.go --dataset PID12345 --token <scicat-token> --api http://localhost:8085/datasets/s3-creds
+go run ./cmd/client/credential_process.go --dataset PID12345 --token <scicat-token> --api http://localhost:8085/s3-creds
 ```
 
 For use with AWS CLI and SDKs, build the client binary and configure your AWS profile to use it as a `credential_process`:
 
 ```bash
 go build ./cmd/client/credential_process.go
-./credential_process --dataset PID12345 --token <scicat-token> --api http://localhost:8080/datasets/s3-creds
+./credential_process --dataset PID12345 --token <scicat-token> --api http://localhost:8080/s3-creds
 ```
 
 Output:
@@ -136,8 +138,22 @@ cmd/            # main entrypoints
 internal/
     config/         # Server configuration
     api/            # Generated server interface and models
-    s3/             # S3 handlers and related functionality 
+    s3/             # S3 handlers and related functionality
     scicat/         # SciCat handlers and realted functionality
+```
+
+### OpenAPI changes
+
+After changing the API, regenerate api code with:
+
+```
+go generate ./...
+```
+
+### Tests
+
+```
+go test ./...
 ```
 
 ---

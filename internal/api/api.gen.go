@@ -16,15 +16,18 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "BearerAuth.Scopes"
 )
 
-// Defines values for GetDatasetsS3CredsParamsOperation.
+// Defines values for GetS3CredsParamsOperation.
 const (
-	Read  GetDatasetsS3CredsParamsOperation = "read"
-	Write GetDatasetsS3CredsParamsOperation = "write"
+	Delete GetS3CredsParamsOperation = "delete"
+	Read   GetS3CredsParamsOperation = "read"
+	Write  GetS3CredsParamsOperation = "write"
 )
 
-// Valid indicates whether the value is a known member of the GetDatasetsS3CredsParamsOperation enum.
-func (e GetDatasetsS3CredsParamsOperation) Valid() bool {
+// Valid indicates whether the value is a known member of the GetS3CredsParamsOperation enum.
+func (e GetS3CredsParamsOperation) Valid() bool {
 	switch e {
+	case Delete:
+		return true
 	case Read:
 		return true
 	case Write:
@@ -34,11 +37,12 @@ func (e GetDatasetsS3CredsParamsOperation) Valid() bool {
 	}
 }
 
-// DatasetsUrlResponse defines model for DatasetsUrlResponse.
-type DatasetsUrlResponse struct {
-	// Expires The earliest expiration of all urls for this dataset
-	Expires time.Time `json:"expires"`
-	Urls    []UrlInfo `json:"urls"`
+// CredentialedUrlResponse defines model for CredentialedUrlResponse.
+type CredentialedUrlResponse struct {
+	Credentials S3CredentialsResponse `json:"credentials"`
+
+	// Uri s3 or https URI on which read/write permissions are granted
+	Uri string `json:"uri"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -49,9 +53,9 @@ type ErrorResponse struct {
 
 // PublishedDataUrlsResponse defines model for PublishedDataUrlsResponse.
 type PublishedDataUrlsResponse struct {
-	// Expires The earliest expiration of all datasets' urls
-	Expires time.Time                      `json:"expires"`
-	Urls    map[string]DatasetsUrlResponse `json:"urls"`
+	// Expires The earliest expiration of all urls for this published data
+	Expires time.Time              `json:"expires"`
+	Urls    map[string]UrlInfoList `json:"urls"`
 }
 
 // S3CredentialsResponse defines model for S3CredentialsResponse.
@@ -69,29 +73,27 @@ type S3CredentialsResponse struct {
 	SessionToken string `json:"session_token"`
 }
 
-// UrlInfo defines model for UrlInfo.
+// UrlInfo Single URL with expiration
 type UrlInfo struct {
 	// Expires The expiration time of the URL in RFC 3339 format
 	Expires time.Time `json:"expires"`
 
-	// Url The URL to access the dataset
+	// Url The URI to access the dataset. This should use either the HTTP(S) or S3 protocol
 	Url string `json:"url"`
+}
+
+// UrlInfoList A list of URLs
+type UrlInfoList struct {
+	// Id identifier for the resource, if applicable
+	Id *string `json:"id,omitempty"`
+
+	// Expires The earliest expiration of all urls for this resource
+	Expires time.Time `json:"expires"`
+	Urls    []UrlInfo `json:"urls"`
 }
 
 // bearerAuthContextKey is the context key for BearerAuth security scheme
 type bearerAuthContextKey string
-
-// GetDatasetsS3CredsParams defines parameters for GetDatasetsS3Creds.
-type GetDatasetsS3CredsParams struct {
-	// Pid The unique identifier of the dataset
-	Pid string `form:"pid" json:"pid"`
-
-	// Operation The operation to request credentials for
-	Operation *GetDatasetsS3CredsParamsOperation `form:"operation,omitempty" json:"operation,omitempty"`
-}
-
-// GetDatasetsS3CredsParamsOperation defines parameters for GetDatasetsS3Creds.
-type GetDatasetsS3CredsParamsOperation string
 
 // GetDatasetsUrlsParams defines parameters for GetDatasetsUrls.
 type GetDatasetsUrlsParams struct {
@@ -105,17 +107,38 @@ type GetPublisheddataUrlsParams struct {
 	Id string `form:"id" json:"id"`
 }
 
+// GetS3CredsParams defines parameters for GetS3Creds.
+type GetS3CredsParams struct {
+	// Id The unique identifier of the resource for purposes of authorization
+	Id string `form:"id" json:"id"`
+
+	// Operation Requested authorization operation: read, write, or delete.
+	Operation *GetS3CredsParamsOperation `form:"operation,omitempty" json:"operation,omitempty"`
+}
+
+// GetS3CredsParamsOperation defines parameters for GetS3Creds.
+type GetS3CredsParamsOperation string
+
+// GetUrlsParams defines parameters for GetUrls.
+type GetUrlsParams struct {
+	// Id The id of the resource.
+	Id string `form:"id" json:"id"`
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Get temporary S3 credentials for a dataset
-	// (GET /datasets/s3-creds)
-	GetDatasetsS3Creds(c *gin.Context, params GetDatasetsS3CredsParams)
-	// Get download URLs for a dataset
+	// Get download URLs for a dataset. Equivalent to `/urls?id={pid}` but returns a single URL.
 	// (GET /datasets/urls)
 	GetDatasetsUrls(c *gin.Context, params GetDatasetsUrlsParams)
-	// Get download URLs for a published data
+	// Get download URLs for a SciCat PublishedData entry, which may include multiple datasets
 	// (GET /publisheddata/urls)
 	GetPublisheddataUrls(c *gin.Context, params GetPublisheddataUrlsParams)
+	// Get temporary S3 credentials for a resource.
+	// (GET /s3-creds)
+	GetS3Creds(c *gin.Context, params GetS3CredsParams)
+	// Get URLs for a resource.
+	// (GET /urls)
+	GetUrls(c *gin.Context, params GetUrlsParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -126,43 +149,6 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
-
-// GetDatasetsS3Creds operation middleware
-func (siw *ServerInterfaceWrapper) GetDatasetsS3Creds(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetDatasetsS3CredsParams
-
-	// ------------- Required query parameter "pid" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "pid", c.Request.URL.Query(), &params.Pid, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pid: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "operation" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "operation", c.Request.URL.Query(), &params.Operation, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter operation: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetDatasetsS3Creds(c, params)
-}
 
 // GetDatasetsUrls operation middleware
 func (siw *ServerInterfaceWrapper) GetDatasetsUrls(c *gin.Context) {
@@ -218,6 +204,70 @@ func (siw *ServerInterfaceWrapper) GetPublisheddataUrls(c *gin.Context) {
 	siw.Handler.GetPublisheddataUrls(c, params)
 }
 
+// GetS3Creds operation middleware
+func (siw *ServerInterfaceWrapper) GetS3Creds(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetS3CredsParams
+
+	// ------------- Required query parameter "id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "id", c.Request.URL.Query(), &params.Id, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "operation" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "operation", c.Request.URL.Query(), &params.Operation, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter operation: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetS3Creds(c, params)
+}
+
+// GetUrls operation middleware
+func (siw *ServerInterfaceWrapper) GetUrls(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUrlsParams
+
+	// ------------- Required query parameter "id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "id", c.Request.URL.Query(), &params.Id, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUrls(c, params)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -245,7 +295,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
-	router.GET(options.BaseURL+"/datasets/s3-creds", wrapper.GetDatasetsS3Creds)
 	router.GET(options.BaseURL+"/datasets/urls", wrapper.GetDatasetsUrls)
 	router.GET(options.BaseURL+"/publisheddata/urls", wrapper.GetPublisheddataUrls)
+	router.GET(options.BaseURL+"/s3-creds", wrapper.GetS3Creds)
+	router.GET(options.BaseURL+"/urls", wrapper.GetUrls)
 }
