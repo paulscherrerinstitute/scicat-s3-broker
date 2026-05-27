@@ -24,7 +24,7 @@ func (m *mockPublisheddataSvc) GetUrls(ctx context.Context, doi string) (*api.Pu
 	case "internal-error":
 		return nil, errors.New("internal error")
 	default:
-		return &api.PublishedDataUrlsResponse{Urls: map[string]api.DatasetsUrlResponse{
+		return &api.PublishedDataUrlsResponse{Urls: map[string]api.UrlInfoList{
 			"pid123": {Urls: []api.UrlInfo{{Url: "http://example.com/publisheddata1"}}}}}, nil
 	}
 }

@@ -58,7 +58,7 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (*ap
 	}
 	type concurrentResult struct {
 		pid            string
-		datasetUrlResp *api.DatasetsUrlResponse
+		datasetUrlResp *api.UrlInfoList
 	}
 	resultSlice := make([]concurrentResult, len(publishedDataResp[0].DatasetPids))
 	g, ctx := errgroup.WithContext(ctx)
@@ -77,7 +77,7 @@ func (s *PublisheddataServiceImpl) GetUrls(ctx context.Context, doi string) (*ap
 	}
 	result := api.PublishedDataUrlsResponse{}
 	result.Expires = time.Time{}
-	result.Urls = make(map[string]api.DatasetsUrlResponse)
+	result.Urls = make(map[string]api.UrlInfoList)
 	for _, r := range resultSlice {
 		result.Urls[r.pid] = *r.datasetUrlResp
 		result.Expires = minTime(result.Expires, r.datasetUrlResp.Expires)

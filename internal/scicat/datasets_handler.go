@@ -13,8 +13,12 @@ type DatasetsHandler struct {
 	service DatasetsService
 }
 
-func (h *DatasetsHandler) GetDatasetsUrls(c *gin.Context, id api.GetDatasetsUrlsParams) {
-	datasetsUrlResp, err := h.service.GetUrls(c.Request.Context(), id.Pid)
+func (h *DatasetsHandler) GetDatasetsUrls(c *gin.Context, pid api.GetDatasetsUrlsParams) {
+	h.GetUrls(c, api.GetUrlsParams{Id: pid.Pid})
+}
+
+func (h *DatasetsHandler) GetUrls(c *gin.Context, id api.GetUrlsParams) {
+	datasetsUrlResp, err := h.service.GetUrls(c.Request.Context(), id.Id)
 
 	if err != nil {
 		if notAccErr, ok := errors.AsType[DatasetNotAccessibleError](err); ok {

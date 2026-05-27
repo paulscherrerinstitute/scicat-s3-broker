@@ -31,7 +31,7 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 		mockJobsBody   string
 		wantErr        bool
 		wantErrIs      error
-		wantResult     api.DatasetsUrlResponse
+		wantResult     api.UrlInfoList
 	}{
 		{
 			name:           "Success",
@@ -46,7 +46,7 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
                 }
             }]`, validTimeRFC3339Str, validTimeIso8601Str, expiresSeconds),
 			wantErr: false,
-			wantResult: api.DatasetsUrlResponse{
+			wantResult: api.UrlInfoList{
 				Urls: []api.UrlInfo{
 					{
 						Url:     fmt.Sprintf("s3://bucket/file?X-Amz-Date=%s&X-Amz-Expires=%v", validTimeIso8601Str, expiresSeconds),
@@ -92,7 +92,7 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 			mockJobsCode:   http.StatusOK,
 			mockJobsBody:   `[]`,
 			wantErr:        false,
-			wantResult:     api.DatasetsUrlResponse{},
+			wantResult:     api.UrlInfoList{},
 		},
 	}
 
@@ -149,7 +149,7 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				expectedNoJobsResp := api.DatasetsUrlResponse{Expires: unixEpoch, Urls: []api.UrlInfo{}}
+				expectedNoJobsResp := api.UrlInfoList{Expires: unixEpoch, Urls: []api.UrlInfo{}}
 				if len(result.Urls) > 0 && result.Urls[0].Url != tt.wantResult.Urls[0].Url {
 					t.Errorf("GetUrls() mismatch\ngot:  %+v\nwant: %+v", result, tt.wantResult)
 				} else if tt.name == "No Jobs Found" && !cmp.Equal(*result, expectedNoJobsResp) {
@@ -159,7 +159,7 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 		})
 	}
 }
-func TestToDatasetsUrlResponse(t *testing.T) {
+func TestToUrlInfoList(t *testing.T) {
 	now := time.Now().UTC()
 	validTimeIso8601Str := now.Format(iso8601Layout)
 	validTimeRFC3339Str := now.Format(time.RFC3339)
@@ -257,10 +257,10 @@ func TestToDatasetsUrlResponse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			jobResp := makeJobResponse(t, tt.inputJSON)
-			got, err := toDatasetsUrlResponse(tt.pid, jobResp)
+			got, err := toUrlInfoList(tt.pid, jobResp)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("toDatasetsUrlResponse() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("toUrlInfoList() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
