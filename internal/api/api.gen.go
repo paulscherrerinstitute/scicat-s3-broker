@@ -127,7 +127,7 @@ type GetUrlsParams struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Get download URLs for a dataset. Equivalent to `/urls?id={pid}` but returns a single URL.
+	// Get download URLs for a dataset. Equivalent to `/urls?id={pid}`.
 	// (GET /datasets/urls)
 	GetDatasetsUrls(c *gin.Context, params GetDatasetsUrlsParams)
 	// Get download URLs for a SciCat PublishedData entry, which may include multiple datasets

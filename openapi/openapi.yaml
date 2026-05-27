@@ -70,7 +70,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /datasets/urls:
     get:
-      summary: Get download URLs for a dataset. Equivalent to `/urls?id={pid}` but returns a single URL.
+      summary: Get download URLs for a dataset. Equivalent to `/urls?id={pid}`.
       tags: [scicat]
       parameters:
         - in: query
@@ -85,7 +85,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UrlInfo"
+                $ref: "#/components/schemas/UrlInfoList"
         "400":
           description: Bad Request
           content:
