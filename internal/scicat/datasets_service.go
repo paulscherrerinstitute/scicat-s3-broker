@@ -267,13 +267,13 @@ func (s *DatasetsServiceImpl) getToken() (string, error) {
 func makeJobsFilter(pid string) ([]byte, error) {
 	filterQuery, err := json.Marshal(gin.H{
 		"where": gin.H{
-			"type":                      gin.H{"$in": []string{"retrieve", "public"}},
+			"type":                      gin.H{"$in": []string{"public"}},
 			"jobParams.option":          "URLs",
 			"statusCode":                "finishedSuccessful",
 			"jobParams.datasetList.pid": pid,
 		},
-		"sort": gin.H{"updatedAt": -1},
 		"limits": gin.H{
+			"sort":  gin.H{"updatedAt": "desc"},
 			"limit": 1,
 			"skip":  0,
 		}})
