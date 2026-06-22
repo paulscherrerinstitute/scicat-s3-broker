@@ -35,9 +35,9 @@ func NewHandler(authorizer auth.Authorizer) *Handler {
 	return &Handler{authorizer: authorizer, stsClient: sts.NewFromConfig(cfg)}
 }
 
-// GetDatasetsS3Creds handles the /datasets/s3-creds endpoint
-func (h *Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3CredsParams) {
-	dataset := params.Pid
+// GetS3Creds handles the /s3-creds endpoint
+func (h *Handler) GetS3Creds(c *gin.Context, params api.GetS3CredsParams) {
+	dataset := params.Id
 
 	operation, err := parseOperation(params.Operation)
 	if err != nil {
@@ -71,17 +71,28 @@ func (h *Handler) GetDatasetsS3Creds(c *gin.Context, params api.GetDatasetsS3Cre
 		return
 	}
 
-	response := api.S3CredentialsResponse{
+	creds := api.S3CredentialsResponse{
 		AccessKey:       *stsOut.Credentials.AccessKeyId,
 		SecretAccessKey: *stsOut.Credentials.SecretAccessKey,
 		SessionToken:    *stsOut.Credentials.SessionToken,
 		ExpiryTime:      *stsOut.Credentials.Expiration,
 	}
+	response := api.CredentialedUrlResponse{
+		Uri:         buildS3Uri(params.Id, operation),
+		Credentials: creds,
+	}
 
 	c.JSON(http.StatusOK, response)
 }
 
-func parseOperation(op *api.GetDatasetsS3CredsParamsOperation) (auth.Operation, error) {
+// placeholder implementation of s3Uri
+func buildS3Uri(id string, op auth.Operation) string {
+	// TO-DO: change bucket name from `datasets` to ${UPLOAD_BUCKET} or ${RETRIEVE_BUCKET} based on `op`
+	// after https://github.com/paulscherrerinstitute/scicat-s3-broker/pull/42 is merged
+	return "s3://datasets/" + id + "/"
+}
+
+func parseOperation(op *api.GetS3CredsParamsOperation) (auth.Operation, error) {
 	if op == nil {
 		return auth.OperationRead, nil
 	}

@@ -19,7 +19,7 @@ import (
 )
 
 type DatasetsService interface {
-	GetUrls(c context.Context, dataset string) (*api.DatasetsUrlResponse, error)
+	GetUrls(c context.Context, dataset string) (*api.UrlInfoList, error)
 }
 
 type DatasetsServiceImpl struct {
@@ -46,7 +46,7 @@ type SciCatLoginResponse struct {
 
 var unixEpoch = time.Unix(0, 0).UTC()
 
-func (s *DatasetsServiceImpl) GetUrls(c context.Context, dataset string) (*api.DatasetsUrlResponse, error) {
+func (s *DatasetsServiceImpl) GetUrls(c context.Context, dataset string) (*api.UrlInfoList, error) {
 
 	if err := s.isPublicAndExists(dataset); err != nil {
 		return nil, err
@@ -95,10 +95,10 @@ func (s *DatasetsServiceImpl) GetUrls(c context.Context, dataset string) (*api.D
 	}
 
 	if len(jobResp) == 0 {
-		return &api.DatasetsUrlResponse{Expires: unixEpoch, Urls: []api.UrlInfo{}}, nil
+		return &api.UrlInfoList{Expires: unixEpoch, Urls: []api.UrlInfo{}}, nil
 	}
 
-	datasetsUrlResp, err := toDatasetsUrlResponse(dataset, jobResp[0])
+	datasetsUrlResp, err := toUrlInfoList(dataset, jobResp[0])
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert to URL response: %v", err)
 	}
@@ -141,12 +141,12 @@ func getExpirationFromJobResponse(jobResp JobsResponse) (time.Time, error) {
 	return parsedTime.AddDate(0, 0, 7), nil
 }
 
-func toDatasetsUrlResponse(pid string, resp JobsResponse) (*api.DatasetsUrlResponse, error) {
+func toUrlInfoList(pid string, resp JobsResponse) (*api.UrlInfoList, error) {
 	if len(resp.JobResultObject.Result) == 0 {
 		return nil, errors.New("no URLs available in job response")
 	}
 
-	result := api.DatasetsUrlResponse{}
+	result := api.UrlInfoList{}
 	result.Expires = time.Time{} // use zero-time as sentinel for max
 
 	topLevelExpiration, err := getExpirationFromJobResponse(resp)

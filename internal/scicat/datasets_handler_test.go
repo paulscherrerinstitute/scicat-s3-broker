@@ -13,7 +13,7 @@ import (
 
 type mockService struct{}
 
-func (m *mockService) GetUrls(c context.Context, dataset string) (*api.DatasetsUrlResponse, error) {
+func (m *mockService) GetUrls(c context.Context, dataset string) (*api.UrlInfoList, error) {
 	switch dataset {
 	case "not-found":
 		return nil, DatasetNotFoundError{dataset}
@@ -22,7 +22,7 @@ func (m *mockService) GetUrls(c context.Context, dataset string) (*api.DatasetsU
 	case "internal-error":
 		return nil, fmt.Errorf("internal error")
 	default:
-		return &api.DatasetsUrlResponse{
+		return &api.UrlInfoList{
 			Urls: []api.UrlInfo{
 				{Url: "http://example.com/dataset1"},
 				{Url: "http://example.com/dataset2"},

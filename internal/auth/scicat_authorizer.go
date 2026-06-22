@@ -29,6 +29,7 @@ func (a *SciCatAuthorizer) Authorize(c *gin.Context, pid string, operation Opera
 	}
 	token := authHeader[7:]
 
+	// All operations require read
 	ownerGroup, err := a.scicatGetDataset(c.Request.Context(), pid, token)
 	if err != nil {
 		return err
@@ -36,7 +37,12 @@ func (a *SciCatAuthorizer) Authorize(c *gin.Context, pid string, operation Opera
 		return nil
 	}
 
-	return a.authorizeWrite(c.Request.Context(), ownerGroup, token)
+	if operation == OperationWrite {
+		return a.authorizeWrite(c.Request.Context(), ownerGroup, token)
+	}
+
+	// No delete allowed
+	return fmt.Errorf("unauthorized for operation %v", operation)
 }
 
 func (a *SciCatAuthorizer) authorizeWrite(ctx context.Context, ownerGroup string, token string) error {

@@ -12,7 +12,7 @@ import (
 	"github.com/paulscherrerinstitute/scicat-s3-broker/internal/api"
 )
 
-type SciCatCreds = api.S3CredentialsResponse
+type SciCatCreds = api.CredentialedUrlResponse
 
 type AWSCreds struct {
 	Version         int    `json:"Version"`
@@ -25,7 +25,7 @@ type AWSCreds struct {
 func main() {
 	dataset := flag.String("dataset", "", "Dataset PID or ID")
 	token := flag.String("token", os.Getenv("SCICAT_TOKEN"), "SciCat access token")
-	api := flag.String("api", "http://localhost:8080/datasets/s3-creds", "SciCat S3 creds endpoint")
+	api := flag.String("api", "http://localhost:8080/s3-creds", "SciCat S3 creds endpoint")
 	flag.Parse()
 
 	if *dataset == "" || *token == "" {
@@ -34,7 +34,7 @@ func main() {
 	}
 
 	// Prepare request
-	req, err := http.NewRequest("GET", *api+"?pid="+*dataset, nil)
+	req, err := http.NewRequest("GET", *api+"?id="+*dataset, nil)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -60,14 +60,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	creds := sc.Credentials
 
 	// Convert to AWS credential_process format
 	aws := AWSCreds{
 		Version:         1,
-		AccessKeyID:     sc.AccessKey,
-		SecretAccessKey: sc.SecretAccessKey,
-		SessionToken:    sc.SessionToken,
-		Expiration:      sc.ExpiryTime.UTC().Format(time.RFC3339),
+		AccessKeyID:     creds.AccessKey,
+		SecretAccessKey: creds.SecretAccessKey,
+		SessionToken:    creds.SessionToken,
+		Expiration:      creds.ExpiryTime.UTC().Format(time.RFC3339),
 	}
 
 	enc := json.NewEncoder(os.Stdout)
