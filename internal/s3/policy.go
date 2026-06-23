@@ -28,12 +28,18 @@ type policyCondition struct {
 func (h *Handler) buildScopedPolicy(dataset string, operation auth.Operation) (string, error) {
 	var objectActions any
 	var bucket string
-	if operation == auth.OperationWrite {
+	switch operation {
+	case auth.OperationWrite:
 		objectActions = "s3:*"
 		bucket = h.bucketConfig.UploadBucket
-	} else {
+	case auth.OperationRead:
 		objectActions = []string{"s3:Get*", "s3:List*"}
 		bucket = h.bucketConfig.RetrieveBucket
+	default:
+		return "", fmt.Errorf("invalid operation %v", operation)
+	}
+	if bucket == "" {
+		return "", fmt.Errorf("bucket is not configured")
 	}
 
 	datasetArn := "arn:aws:s3:::" + bucket + "/" + dataset

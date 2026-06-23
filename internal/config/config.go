@@ -28,12 +28,12 @@ func Load() (*Config, error) {
 		username = "jobManager"
 	}
 
-	retrieveBucket := os.Getenv("RETRIEVE_BUCKET")
+	retrieveBucket := strings.TrimSpace(os.Getenv("RETRIEVE_BUCKET"))
 	if retrieveBucket == "" {
 		retrieveBucket = "datasets"
 	}
 
-	uploadBucket := os.Getenv("UPLOAD_BUCKET")
+	uploadBucket := strings.TrimSpace(os.Getenv("UPLOAD_BUCKET"))
 	if uploadBucket == "" {
 		uploadBucket = "datasets"
 	}
