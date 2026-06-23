@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -39,8 +40,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Prepare request
-	req, err := http.NewRequest("GET", *api+"?pid="+*dataset+"&operation="+*operation, nil)
+	baseURL, err := url.Parse(*api)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	q := baseURL.Query()
+	q.Set("pid", *dataset)
+	q.Set("operation", *operation)
+	baseURL.RawQuery = q.Encode()
+	req, err := http.NewRequest("GET", baseURL.String(), nil)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
