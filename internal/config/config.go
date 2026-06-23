@@ -5,10 +5,16 @@ import (
 	"strings"
 )
 
+type BucketConfig struct {
+	RetrieveBucket string
+	UploadBucket   string
+}
+
 type Config struct {
 	SciCatURL          string
 	JobManagerUsername string
 	JobManagerPassword string
+	BucketConfig       BucketConfig
 }
 
 // Load reads environment variables and validates them.
@@ -22,9 +28,20 @@ func Load() (*Config, error) {
 		username = "jobManager"
 	}
 
+	retrieveBucket := strings.TrimSpace(os.Getenv("RETRIEVE_BUCKET"))
+	if retrieveBucket == "" {
+		retrieveBucket = "datasets"
+	}
+
+	uploadBucket := strings.TrimSpace(os.Getenv("UPLOAD_BUCKET"))
+	if uploadBucket == "" {
+		uploadBucket = "datasets"
+	}
+
 	return &Config{
 		SciCatURL:          strings.TrimRight(scicatURL, "/"),
 		JobManagerUsername: username,
 		JobManagerPassword: password,
+		BucketConfig:       BucketConfig{RetrieveBucket: retrieveBucket, UploadBucket: uploadBucket},
 	}, nil
 }

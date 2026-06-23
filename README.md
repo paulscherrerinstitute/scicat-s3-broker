@@ -13,7 +13,7 @@ Also included is a simple CLI client that can be used as an AWS CLI credential p
 
 - 🔑 **Credential broker**: returns temporary S3 credentials for a given dataset.
 - 📥 **Download URLs** for public datasets: get presigned URLs for retrieved, public datasets.
-- 🛡 **Authorization via SciCat**: forwards the end-user’s SciCat token for access checks. //TO-DO
+- 🛡 **Authorization via SciCat**: forwards the end-user’s SciCat token for access checks.
 
 ---
 
@@ -36,6 +36,8 @@ The following environement variables are available for configuration:
 | JOB_MANAGER_PASSWORD | no\*     | ""         |                                                             |                                    |
 | PORT                 | no       | 8080       | The port to serve from. This is a Gin configuration         |                                    |
 | GIN_MODE             | no       | debug      | Set to `release` for production                             |                                    |
+| RETRIEVE_BUCKET      | no       | datasets   | Bucket to generate the read scoped policy for               | psi-retrieve-dev                    |
+| UPLOAD_BUCKET        | no       | datasets   | Bucket to generate the write scoped policy for              | psi-upload-dev                      |
 
 \* `SCICAT_URL` and `JOB_MANAGER_PASSWORD` are both _required_ for the `/datasets/urls` and `/publisheddata/urls` endpoints. If either is not set, the server returns `HTTP 501 Not Implemented`.
 
