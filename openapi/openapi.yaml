@@ -155,11 +155,16 @@ components:
           format: date-time
           description: The earliest expiration of all urls for this dataset
           x-order: 1
+        s3Uri:
+          type: string
+          description: URL to the S3 prefix containing dataset's files
+          x-order: 2
         urls:
           type: array
+          description: List of download URLs to the dataset's individual files
           items:
             $ref: "#/components/schemas/UrlInfo"
-          x-order: 2
+          x-order: 3
       required:
         - expires
         - urls

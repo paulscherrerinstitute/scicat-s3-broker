@@ -38,7 +38,12 @@ func (e GetDatasetsS3CredsParamsOperation) Valid() bool {
 type DatasetsUrlResponse struct {
 	// Expires The earliest expiration of all urls for this dataset
 	Expires time.Time `json:"expires"`
-	Urls    []UrlInfo `json:"urls"`
+
+	// S3Uri URL to the S3 prefix containing dataset's files
+	S3Uri *string `json:"s3Uri,omitempty"`
+
+	// Urls List of download URLs to the dataset's individual files
+	Urls []UrlInfo `json:"urls"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
