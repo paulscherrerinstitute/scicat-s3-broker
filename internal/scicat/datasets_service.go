@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -141,6 +142,34 @@ func getExpirationFromJobResponse(jobResp JobsResponse) (time.Time, error) {
 	return parsedTime.AddDate(0, 0, 7), nil
 }
 
+func extractS3PrefixUri(fullUrl string, pid string) (*string, error) {
+	u, err := url.Parse(fullUrl)
+	if err != nil {
+		return nil, fmt.Errorf("extractS3PrefixUri: invalid URL: %w", err)
+	}
+
+	// path is like /bucket/PID.PREFIX/shortPID/filename...
+	// parts = ["", "bucket", "PID.PREFIX", "shortPID", "...rest"]
+	parts := strings.SplitN(u.Path, "/", 5)
+	if len(parts) < 5 {
+		return nil, fmt.Errorf("extractS3PrefixUri: URL path too short: %s", u.Path)
+	}
+	bucket := parts[1]
+	dirPath := parts[2] + "/" + parts[3]
+	if dirPath != pid {
+		return nil, fmt.Errorf("extractS3PrefixUri: path component %q does not match pid %q", dirPath, pid)
+	}
+
+	result := url.URL{
+		Scheme:   u.Scheme,
+		Host:     u.Host,
+		Path:     "/" + bucket + "/",
+		RawQuery: "prefix=" + pid,
+	}
+	ret := result.String()
+	return &ret, nil
+}
+
 func toDatasetsUrlResponse(pid string, resp JobsResponse) (*api.DatasetsUrlResponse, error) {
 	if len(resp.JobResultObject.Result) == 0 {
 		return nil, errors.New("no URLs available in job response")
@@ -161,6 +190,14 @@ func toDatasetsUrlResponse(pid string, resp JobsResponse) (*api.DatasetsUrlRespo
 			}
 			result.Urls = append(result.Urls, api.UrlInfo{Expires: expirationTime, Url: x.Url})
 			result.Expires = minTime(result.Expires, expirationTime)
+		}
+	}
+
+	if len(result.Urls) > 0 {
+		firstUrl := result.Urls[0].Url
+		result.S3Uri, err = extractS3PrefixUri(firstUrl, pid)
+		if err != nil {
+			log.Printf("failed to extract s3Uri %v", err)
 		}
 	}
 
