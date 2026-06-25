@@ -21,6 +21,7 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 	validTimeRFC3339Str := now.Format(time.RFC3339)
 	validTimeIso8601Str := now.Format(iso8601Layout)
 	expiresSeconds := 604800
+	publicS3Uri := "https://s3.example.com/thebucket/?prefix=pid.prefix/34-dsf-sdf3"
 
 	tests := []struct {
 		name           string
@@ -34,15 +35,15 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 		wantResult     api.DatasetsUrlResponse
 	}{
 		{
-			name:           "Success",
-			datasetPid:     "valid-pid",
+			name:           "Success presigned",
+			datasetPid:     "valid-pid-presigned",
 			mockPublicCode: http.StatusOK,
 			mockLoginCode:  http.StatusCreated,
 			mockJobsCode:   http.StatusOK,
 			mockJobsBody: fmt.Sprintf(`[{
 				"updatedAt": "%s",
                 "jobResultObject": {
-                    "result": [{"datasetId": "valid-pid", "url": "s3://bucket/file?X-Amz-Date=%s&X-Amz-Expires=%v"}]
+                    "result": [{"datasetId": "valid-pid-presigned", "url": "s3://bucket/file?X-Amz-Date=%s&X-Amz-Expires=%v"}]
                 }
             }]`, validTimeRFC3339Str, validTimeIso8601Str, expiresSeconds),
 			wantErr: false,
@@ -53,6 +54,28 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 						Expires: now.Add(time.Second * time.Duration(expiresSeconds)),
 					},
 				},
+			},
+		},
+		{
+			name:           "Success non-presigned (public bucket) returns S3Uri",
+			datasetPid:     "pid.prefix/34-dsf-sdf3",
+			mockPublicCode: http.StatusOK,
+			mockLoginCode:  http.StatusCreated,
+			mockJobsCode:   http.StatusOK,
+			mockJobsBody: fmt.Sprintf(`[{
+				"updatedAt": "%s",
+                "jobResultObject": {
+                    "result": [{"datasetId": "pid.prefix/34-dsf-sdf3", "url": "https://s3.example.com/thebucket/pid.prefix/34-dsf-sdf3/file.txt"}]
+                }
+            }]`, validTimeRFC3339Str),
+			wantErr: false,
+			wantResult: api.DatasetsUrlResponse{
+				Urls: []api.UrlInfo{
+					{
+						Url: "https://s3.example.com/thebucket/pid.prefix/34-dsf-sdf3/file.txt",
+					},
+				},
+				S3Uri: &publicS3Uri,
 			},
 		},
 		{
@@ -154,6 +177,15 @@ func TestDatasetsServiceGetUrls(t *testing.T) {
 					t.Errorf("GetUrls() mismatch\ngot:  %+v\nwant: %+v", result, tt.wantResult)
 				} else if tt.name == "No Jobs Found" && !cmp.Equal(*result, expectedNoJobsResp) {
 					t.Errorf("GetUrls() mismatch:\ndiff %v", cmp.Diff(*result, expectedNoJobsResp))
+				}
+				if tt.wantResult.S3Uri != nil {
+					if result.S3Uri == nil {
+						t.Errorf("GetUrls() expected S3Uri %q, got nil", *tt.wantResult.S3Uri)
+					} else if *result.S3Uri != *tt.wantResult.S3Uri {
+						t.Errorf("GetUrls() S3Uri mismatch\ngot:  %q\nwant: %q", *result.S3Uri, *tt.wantResult.S3Uri)
+					}
+				} else if result.S3Uri != nil {
+					t.Errorf("GetUrls() expected no S3Uri, got %q", *result.S3Uri)
 				}
 			}
 		})
@@ -282,6 +314,63 @@ func TestToDatasetsUrlResponse(t *testing.T) {
 					if !got.Expires.Equal(expectedExp) {
 						t.Errorf("Expected earliest expiration at the root of the response\nGot: %v\nWant: %v", got.Expires, expectedExp)
 					}
+				}
+			}
+		})
+	}
+}
+
+func TestExtractS3PrefixUri(t *testing.T) {
+	publicS3Uri := "https://s3.example.com/thebucket/?prefix=pid.prefix/34-dsf-sdf3"
+
+	tests := []struct {
+		name    string
+		fullUrl string
+		pid     string
+		want    *string
+		wantErr bool
+	}{
+		{
+			name:    "valid prefix/id pid",
+			fullUrl: "https://s3.example.com/thebucket/pid.prefix/34-dsf-sdf3/file.txt",
+			pid:     "pid.prefix/34-dsf-sdf3",
+			want:    &publicS3Uri,
+			wantErr: false,
+		},
+		{
+			name:    "path too short",
+			fullUrl: "https://s3.example.com/thebucket/pid.prefix/34-dsf-sdf3",
+			pid:     "pid.prefix/34-dsf-sdf3",
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "pid mismatch",
+			fullUrl: "https://s3.example.com/thebucket/wrong.prefix/other-id/file.txt",
+			pid:     "pid.prefix/34-dsf-sdf3",
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := extractS3PrefixUri(tt.fullUrl, tt.pid)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("extractS3PrefixUri() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.want == nil && got != nil {
+				t.Errorf("extractS3PrefixUri() = %q, want nil", *got)
+				return
+			}
+			if tt.want != nil {
+				if got == nil {
+					t.Errorf("extractS3PrefixUri() = nil, want %q", *tt.want)
+					return
+				}
+				if *got != *tt.want {
+					t.Errorf("extractS3PrefixUri() = %q, want %q", *got, *tt.want)
 				}
 			}
 		})
