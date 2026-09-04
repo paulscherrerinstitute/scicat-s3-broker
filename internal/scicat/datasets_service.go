@@ -175,9 +175,9 @@ func toDatasetsUrlResponse(pid string, resp JobsResponse) (*api.DatasetsUrlRespo
 		return nil, errors.New("no URLs available in job response")
 	}
 
-	result := api.DatasetsUrlResponse{}
-	result.Expires = time.Time{} // use zero-time as sentinel for max
-
+	result := api.DatasetsUrlResponse{
+		Expires: time.Time{}, // use zero-time as sentinel for max
+		Urls:    make([]api.UrlInfo, 0)}
 	topLevelExpiration, err := getExpirationFromJobResponse(resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get expiration from job response: %w", err)

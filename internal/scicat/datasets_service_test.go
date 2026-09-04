@@ -251,6 +251,20 @@ func TestToDatasetsUrlResponse(t *testing.T) {
 			expectedCount: 2,
 		},
 		{
+			name: "No Result Entry Matches PID",
+			pid:  "pid-123",
+			inputJSON: fmt.Sprintf(`{
+				"updatedAt": "%s",
+				"jobResultObject": {
+					"result": [
+						{"datasetId": "pid-123pid-456", "url": "s3://bucket/file1"}
+					]
+				}
+			}`, validTimeRFC3339Str),
+			wantErr:       false,
+			expectedCount: 0,
+		},
+		{
 			name: "Empty Result List",
 			pid:  "pid-123",
 			inputJSON: `{
@@ -297,22 +311,27 @@ func TestToDatasetsUrlResponse(t *testing.T) {
 			}
 
 			if !tt.wantErr {
+				if got.Urls == nil {
+					t.Error("Urls is nil and marshals to null; want an empty array")
+				}
 				if len(got.Urls) != tt.expectedCount {
 					t.Errorf("Expected %d URLs, got %d", tt.expectedCount, len(got.Urls))
 				}
-				// Verify expiration is 7 days from creation
-				expectedExp := now.Add(time.Second * time.Duration(expiresSeconds))
-				diff := got.Urls[0].Expires.Sub(expectedExp)
-				tolerance := 1 * time.Second
-				if diff < -tolerance || diff > tolerance {
-					t.Errorf("Expiration date mismatch.\nGot:  %v\nWant: %v\nDiff: %v", got.Urls[0].Expires, expectedExp, diff)
-				}
+				if tt.expectedCount > 0 {
+					// Verify expiration is 7 days from creation
+					expectedExp := now.Add(time.Second * time.Duration(expiresSeconds))
+					diff := got.Urls[0].Expires.Sub(expectedExp)
+					tolerance := 1 * time.Second
+					if diff < -tolerance || diff > tolerance {
+						t.Errorf("Expiration date mismatch.\nGot:  %v\nWant: %v\nDiff: %v", got.Urls[0].Expires, expectedExp, diff)
+					}
 
-				// verify that earlier expiration is present at the root
-				if tt.expectedCount == 2 {
-					expectedExp := minTime(got.Urls[0].Expires, got.Urls[1].Expires)
-					if !got.Expires.Equal(expectedExp) {
-						t.Errorf("Expected earliest expiration at the root of the response\nGot: %v\nWant: %v", got.Expires, expectedExp)
+					// verify that earlier expiration is present at the root
+					if tt.expectedCount == 2 {
+						expectedExp := minTime(got.Urls[0].Expires, got.Urls[1].Expires)
+						if !got.Expires.Equal(expectedExp) {
+							t.Errorf("Expected earliest expiration at the root of the response\nGot: %v\nWant: %v", got.Expires, expectedExp)
+						}
 					}
 				}
 			}
